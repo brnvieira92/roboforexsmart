@@ -96,3 +96,23 @@ O WebRequest é síncrono: timeout de 1 segundo, executado depois da gestão e a
 ### Testes MQL5 sem envio
 
 Copie `mt5/Scripts/TestForexSmartTelegram.mq5` para `MQL5/Scripts/` e o include para `MQL5/Experts/Include/`. Compile e execute o script em um gráfico demo. Deve imprimir `Telegram unit tests: PASS`. Testa encoding UTF-8, limites/ordem da fila e expiração, sem chamar Telegram nem precisar de token. Esses testes MQL5 não foram executados no ambiente Linux; os testes Python validam somente o leitor CSV.
+
+## Evolução v2.00 — branch de desenvolvimento
+
+Esta branch adiciona autorização por sessão, isolamento por conta/servidor, controles de custos e risco e quatro estratégias experimentais. **Não foi compilada nem executada no MT5 neste ambiente.** Não substitui automaticamente a versão da main.
+
+Leia [auditoria, testes e procedimentos completos](docs/VALIDATION.md) antes de instalar. O modo padrão é `LEGACY`; os critérios EMA9/21/ATR14 continuam, mas as novas proteções podem rejeitar entradas que a v1.10 aceitaria. O resultado do backtest antigo não é evidência de rentabilidade da v2.
+
+Para instalar a v2, copie **todos os arquivos de `mt5/Include/`** para `MQL5/Experts/Include/`, além do EA. A autorização requer `AutoTrade=true`, permissões do terminal, comissão conferida (`CommissionEstimateConfirmed=true`) e clique no botão **ATIVAR DEMO/REAL**. A cada reinício/troca de conta é necessário ativar novamente. Telegram continua com o mesmo arquivo local e URL; não existem comandos remotos.
+
+O histórico novo usa `ForexSmart-<login>.<fingerprint-servidor>-history.csv`. O antigo `ForexSmart-history.csv` é preservado. `tools/history_report.py` aceita os dois formatos e agrega os novos eventos de negócios por estratégia/par; não calcula win rate por posição com base em parciais.
+
+Testes locais sem MT5:
+
+```sh
+python3 -m unittest discover -s tests -v
+g++ -std=c++17 -Wall -Wextra -Werror tests/native/test_core.cpp -o /tmp/forexsmart-core-tests
+/tmp/forexsmart-core-tests
+```
+
+Nenhum desses comandos envia ordens. C++ compila apenas as políticas matemáticas compartilhadas com o EA. Compilação completa, backtest, painel, APIs MT5, recuperação real do terminal e operação demo permanecem na matriz de validação pendente.

@@ -1,0 +1,40 @@
+#ifndef FOREX_SMART_ACCOUNT
+#define FOREX_SMART_ACCOUNT
+string accountScope="",accountIdentity="";
+SessionState sessionState;
+bool emergencyStop=false,criticalFailure=false;
+string lastReject="",lastStrategy="LEGACY",lastRegime="NO_TRADE";
+double lastAggregateRisk=0;
+string AccountKind(){long m=AccountInfoInteger(ACCOUNT_TRADE_MODE);if(m==ACCOUNT_TRADE_MODE_DEMO)return "DEMO";if(m==ACCOUNT_TRADE_MODE_REAL)return "REAL";return "CONTEST";}
+string Identity(){return (string)AccountInfoInteger(ACCOUNT_LOGIN)+"|"+AccountInfoString(ACCOUNT_SERVER)+"|"+(string)AccountInfoInteger(ACCOUNT_TRADE_MODE);}
+ulong TextFingerprint(string server){ulong hash=1469598103934665603;for(int i=0;i<StringLen(server);i++){hash^=(ulong)StringGetCharacter(server,i);hash*=1099511628211;}return hash;}
+ulong ServerFingerprint(){return TextFingerprint(AccountInfoString(ACCOUNT_SERVER));}
+string ServerHash(){return StringFormat("%I64X",ServerFingerprint());}
+string BarKey(string symbol){return StateKey("b."+StringFormat("%I64X",TextFingerprint(symbol)));}
+string StateKey(string suffix){return "FS2."+accountScope+"."+suffix;}
+string ModeName(){return StrategyMode==LEGACY?"LEGACY":"MULTISTRATEGY";}
+void ResetTelegramAccount(){ArrayResize(TgMessages,0);ArrayResize(TgAttempts,0);ArrayResize(TgCreated,0);}
+// Returns true only after identity has been refreshed. Always starts disarmed.
+void SyncAccount(){ObserveAccount(sessionState,AccountInfoInteger(ACCOUNT_LOGIN),(long)ServerFingerprint(),(int)AccountInfoInteger(ACCOUNT_TRADE_MODE));string current=Identity();if(current==accountIdentity)return;
+ accountIdentity=current;accountScope=(string)AccountInfoInteger(ACCOUNT_LOGIN)+"."+ServerHash();
+ sessionState.authorized=false;paused=false;emergencyStop=false;criticalFailure=false;dayKey=-1;dayEquity=0;lossNotified=false;
+ ResetTelegramAccount();lastReject="Nova sessão: ativação manual obrigatória";
+ Print("Forex Smart: conta ",AccountKind()," identificada. Novas entradas desarmadas.");
+}
+void Reject(string reason){lastReject=reason;Journal("reject",ModeName()+" | "+lastStrategy+" | "+reason);Print("Entrada bloqueada: ",reason);TelegramQueue("Forex Smart | "+AccountKind()+" | "+ModeName()+" | "+lastStrategy+" | Entrada rejeitada: "+reason);}
+bool Permissions(){return TerminalInfoInteger(TERMINAL_CONNECTED)&&TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)&&MQLInfoInteger(MQL_TRADE_ALLOWED)&&AccountInfoInteger(ACCOUNT_TRADE_ALLOWED)&&AccountInfoInteger(ACCOUNT_TRADE_EXPERT);}
+bool EntrySession(){return SessionPermitted(AutoTrade,sessionState.authorized,paused,emergencyStop,TerminalInfoInteger(TERMINAL_CONNECTED),Permissions(),AccountInfoInteger(ACCOUNT_TRADE_MODE)==ACCOUNT_TRADE_MODE_CONTEST)&&!criticalFailure;}
+double RelevantEquity(){
+ double actual=AccountInfoDouble(ACCOUNT_EQUITY);
+ if(!UseReferenceCapital||AccountInfoInteger(ACCOUNT_TRADE_MODE)!=ACCOUNT_TRADE_MODE_DEMO)return actual;
+ // A persistent virtual equity tracks the whole account from first enabling the feature.
+ // Deposits/withdrawals are neutralized using balance-only cash-flow deals.
+ string startKey=StateKey("ref.time"),baseKey=StateKey("ref.eq"),amountKey=StateKey("ref.amount"),flowKey=StateKey("ref.cash");
+ double flows=0;
+ if(!HistorySelect(0,TimeCurrent()))return 0;
+ for(int i=0;i<HistoryDealsTotal();i++){ulong d=HistoryDealGetTicket(i);long t=HistoryDealGetInteger(d,DEAL_TYPE);if(t==DEAL_TYPE_BALANCE||t==DEAL_TYPE_CREDIT)flows+=HistoryDealGetDouble(d,DEAL_PROFIT);}
+ if(!GlobalVariableCheck(startKey)){GlobalVariableSet(startKey,(double)TimeCurrent());GlobalVariableSet(baseKey,actual);GlobalVariableSet(amountKey,ReferenceCapital);GlobalVariableSet(flowKey,flows);GlobalVariablesFlush();}
+ if(!GlobalVariableCheck(baseKey)||!GlobalVariableCheck(amountKey)||!GlobalVariableCheck(flowKey)||GlobalVariableGet(amountKey)!=ReferenceCapital)return 0;
+ return ReferenceEquity(actual,GlobalVariableGet(baseKey),ReferenceCapital,flows-GlobalVariableGet(flowKey));
+}
+#endif
