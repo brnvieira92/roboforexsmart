@@ -5,7 +5,7 @@ void RecoverState(){
  for(int p=PositionsTotal()-1;p>=0;p--){ulong ticket=PositionGetTicket(p);if(ticket==0||PositionGetInteger(POSITION_MAGIC)!=(long)MAGIC)continue;
  string symbol=PositionGetString(POSITION_SYMBOL);ulong id=(ulong)PositionGetInteger(POSITION_IDENTIFIER);bool found=false;
  for(int i=0;i<ArraySize(symbols);i++)if(symbols[i]==symbol)found=true;
- if(!found){int n=ArraySize(symbols);ArrayResize(symbols,n+1);ArrayResize(fast,n+1);ArrayResize(slow,n+1);ArrayResize(atr,n+1);ArrayResize(lastbar,n+1);
+ if(!found){int n=ArraySize(symbols);ArrayResize(symbols,n+1);ArrayResize(fastHandles,n+1);ArrayResize(slowHandles,n+1);ArrayResize(atrHandles,n+1);ArrayResize(lastbar,n+1);
  symbols[n]=symbol;SymbolSelect(symbol,true);fastHandles[n]=iMA(symbol,PERIOD_M5,9,0,MODE_EMA,PRICE_CLOSE);slowHandles[n]=iMA(symbol,PERIOD_M5,21,0,MODE_EMA,PRICE_CLOSE);atrHandles[n]=iATR(symbol,PERIOD_M5,14);lastbar[n]=iTime(symbol,PERIOD_M5,0);
  if(StrategyMode==MULTISTRATEGY){ResearchRelease();if(!ResearchInit())criticalFailure=true;}
  }

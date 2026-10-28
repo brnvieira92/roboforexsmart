@@ -1,5 +1,5 @@
 #property strict
-#property version "2.01"
+#property version "2.02"
 #property description "Forex Smart | smartTrade | Demo validation required"
 #include <Trade/Trade.mqh>
 #include "Include/ForexSmartTelegram.mqh"
@@ -172,7 +172,7 @@ int OnInit(){
  ArrayResize(entrySymbols,n);for(int j=0;j<n;j++){StringTrimLeft(symbols[j]);StringTrimRight(symbols[j]);entrySymbols[j]=symbols[j];}
  for(int p=0;p<PositionsTotal();p++){if(PositionGetTicket(p)==0||PositionGetInteger(POSITION_MAGIC)!=(long)MAGIC)continue;string sym=PositionGetString(POSITION_SYMBOL);bool found=false;for(int j=0;j<n;j++)if(symbols[j]==sym)found=true;if(!found){ArrayResize(symbols,++n);symbols[n-1]=sym;}}
 
- ArrayResize(fast,n);ArrayResize(slow,n);ArrayResize(atr,n);ArrayResize(lastbar,n);ArrayInitialize(lastbar,0);
+ ArrayResize(fastHandles,n);ArrayResize(slowHandles,n);ArrayResize(atrHandles,n);ArrayResize(lastbar,n);ArrayInitialize(lastbar,0);
  for(int i=0;i<n;i++){StringTrimLeft(symbols[i]);StringTrimRight(symbols[i]);for(int j=0;j<i;j++)if(symbols[j]==symbols[i])return INIT_PARAMETERS_INCORRECT;if(!SymbolSelect(symbols[i],true))return INIT_FAILED;
  if(GlobalVariableCheck(BarKey(symbols[i])))lastbar[i]=(datetime)GlobalVariableGet(BarKey(symbols[i]));
  fastHandles[i]=iMA(symbols[i],PERIOD_M5,9,0,MODE_EMA,PRICE_CLOSE);slowHandles[i]=iMA(symbols[i],PERIOD_M5,21,0,MODE_EMA,PRICE_CLOSE);atrHandles[i]=iATR(symbols[i],PERIOD_M5,14);
@@ -246,4 +246,4 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,const MqlTradeRequest &
  for(int p=0;p<PositionsTotal();p++){if(PositionGetTicket(p)>0&&(ulong)PositionGetInteger(POSITION_IDENTIFIER)==positionID){if(!GlobalVariableCheck(StateKey("r."+(string)positionID)))GlobalVariableSet(StateKey("r."+(string)positionID),MathAbs(PositionGetDouble(POSITION_PRICE_OPEN)-PositionGetDouble(POSITION_SL)));break;}}}
  Journal((string)trans.deal,message+" | commission="+DoubleToString(HistoryDealGetDouble(trans.deal,DEAL_COMMISSION),2)+" | swap="+DoubleToString(HistoryDealGetDouble(trans.deal,DEAL_SWAP),2));Notify(message,strategy);
 }
-void OnDeinit(const int reason){sessionState.authorized=false;ReleaseLease();ResearchRelease();EventKillTimer();for(int i=0;i<ArraySize(fast);i++){IndicatorRelease(fastHandles[i]);IndicatorRelease(slowHandles[i]);IndicatorRelease(atrHandles[i]);}ObjectDelete(0,"FS.pause");ObjectDelete(0,"FS.status");ObjectDelete(0,"FS.arm");ObjectDelete(0,"FS.emergency");Comment("");}
+void OnDeinit(const int reason){sessionState.authorized=false;ReleaseLease();ResearchRelease();EventKillTimer();for(int i=0;i<ArraySize(fastHandles);i++){IndicatorRelease(fastHandles[i]);IndicatorRelease(slowHandles[i]);IndicatorRelease(atrHandles[i]);}ObjectDelete(0,"FS.pause");ObjectDelete(0,"FS.status");ObjectDelete(0,"FS.arm");ObjectDelete(0,"FS.emergency");Comment("");}

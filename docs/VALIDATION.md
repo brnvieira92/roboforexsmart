@@ -101,3 +101,17 @@ O botão Status agora informa tipo de conta, modo, autorização, máscara e tod
 A decisão de entrada foi comparada à implementação anterior em 2.048 combinações e permaneceu equivalente. Os testes locais do núcleo e quatro testes Python passaram; compilação completa MQL5 e diagnóstico no terminal do usuário permanecem pendentes. Essa alteração melhora observabilidade; não comprova qual era a causa dos 12 eventos nem elimina uma restrição legítima.
 
 Atualização: na branch `development/safe-multistrategy`, execute `git pull --ff-only origin development/safe-multistrategy`; copie EA e todos os includes para o MT5, compile F7, confira v2.01 e clique Status antes de qualquer reativação. Não é necessário aguardar um sinal para obter o diagnóstico. Reinstalar/recompilar/reanexar pode desarmar a sessão; registre primeiro o Status e depois autorize conscientemente na demo para testar o estado seguinte.
+
+## v2.02 — correção de referências e instalação consistente
+
+A renomeação de handles da revisão anterior deixou `ArrayResize`/`ArraySize` referenciando fast/slow/atr, já não declarados. Isso foi um defeito da alteração, corrigido nesta versão. As capturas também mostraram o include Account sem as funções novas de diagnóstico (RuntimeEntryBlocks/EntryBlockDetails/ReportSession); todos os includes precisam corresponder ao EA.
+
+`mt5/manifest.json` lista SHA-256 do EA e seis includes. `tools/install_mt5.py` verifica o conjunto antes de copiar, faz backup dos arquivos existentes, confere os arquivos instalados e preserva credenciais/histórico. Não compila, inicia nem autoriza o robô. Para atualizar o bundle no desenvolvimento, regenere o manifesto após alterar fontes MQL5. Não remova a verificação para aceitar um pacote divergente.
+
+No Windows, com Algo Trading desativado e sem posições abertas, obtenha a Pasta de Dados pelo menu do MT5. Dentro do projeto atualizado execute:
+
+```powershell
+py tools\install_mt5.py "C:\caminho\exato\da\Pasta de Dados"
+```
+
+Passe a pasta que contém MQL5, não Experts e não o checkout. Compile depois `MQL5/Experts/ForexSmart.mq5` com F7 e confira v2.02. Sem Python, copie manualmente EA e todos os seis includes da mesma revisão. Não se declara compilação MQL5 validada no ambiente Linux. Oito testes Python (incluindo backup/credenciais, pacote divergente, destino incorreto e referências antigas) e o harness nativo passaram nesta revisão.

@@ -1,0 +1,12 @@
+{
+  "version": "2.02",
+  "files": {
+    "ForexSmart.mq5": "2198ef4163174437a3bbc05832659728c922a531419bd34763a94754eea51e7d",
+    "Include/ForexSmartAccount.mqh": "3e4250fc5d51a470386e5dd988c374660754dd0e39a7a42c28a17d458decf337",
+    "Include/ForexSmartCore.mqh": "62eadf73c895eeeaffcc8300831b0f9b72cf321a74a5b36d29e0d9bdeb882cd7",
+    "Include/ForexSmartRecovery.mqh": "07051b2a79803d025491021ad58f8a6d519ff42b674e6dd56a178fcd95d8f1c2",
+    "Include/ForexSmartResearch.mqh": "dab5e0a3e7325f5a140056619a82abdb8a1d056c5857b8473382857518eff60c",
+    "Include/ForexSmartRisk.mqh": "59012f570a2d315b831c9687b6cac92d2f8ad34fd4b2eb5eb54cd15f7a79e95f",
+    "Include/ForexSmartTelegram.mqh": "1e3ada8d6a0df6a28b82f9ab1381be1f22aa81c6b9ed13d735229c2a145d9b66"
+  }
+}
