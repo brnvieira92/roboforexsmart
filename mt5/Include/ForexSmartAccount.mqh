@@ -17,13 +17,13 @@ void ResetTelegramAccount(){ArrayResize(TgMessages,0);ArrayResize(TgAttempts,0);
 // Returns true only after identity has been refreshed. Always starts disarmed.
 void SyncAccount(){ObserveAccount(sessionState,AccountInfoInteger(ACCOUNT_LOGIN),(long)ServerFingerprint(),(int)AccountInfoInteger(ACCOUNT_TRADE_MODE));string current=Identity();if(current==accountIdentity)return;
  accountIdentity=current;accountScope=(string)AccountInfoInteger(ACCOUNT_LOGIN)+"."+ServerHash();
- sessionState.authorized=false;paused=false;emergencyStop=false;criticalFailure=false;dayKey=-1;dayEquity=0;lossNotified=false;
+ sessionState.authorized=false;entriesPaused=false;emergencyStop=false;criticalFailure=false;dayKey=-1;dayEquity=0;lossNotified=false;
  ResetTelegramAccount();lastReject="Nova sessão: ativação manual obrigatória";
  Print("Forex Smart: conta ",AccountKind()," identificada. Novas entradas desarmadas.");
 }
 void Reject(string reason){lastReject=reason;Journal("reject",ModeName()+" | "+lastStrategy+" | "+reason);Print("Entrada bloqueada: ",reason);TelegramQueue("Forex Smart | "+AccountKind()+" | "+ModeName()+" | "+lastStrategy+" | Entrada rejeitada: "+reason);}
 bool Permissions(){return TerminalInfoInteger(TERMINAL_CONNECTED)&&TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)&&MQLInfoInteger(MQL_TRADE_ALLOWED)&&AccountInfoInteger(ACCOUNT_TRADE_ALLOWED)&&AccountInfoInteger(ACCOUNT_TRADE_EXPERT);}
-int RuntimeEntryBlocks(){return EntryBlocks(AutoTrade,sessionState.authorized,paused,emergencyStop,
+int RuntimeEntryBlocks(){return EntryBlocks(AutoTrade,sessionState.authorized,entriesPaused,emergencyStop,
  TerminalInfoInteger(TERMINAL_CONNECTED),TerminalInfoInteger(TERMINAL_TRADE_ALLOWED),
  MQLInfoInteger(MQL_TRADE_ALLOWED),AccountInfoInteger(ACCOUNT_TRADE_ALLOWED),
  AccountInfoInteger(ACCOUNT_TRADE_EXPERT),AccountInfoInteger(ACCOUNT_TRADE_MODE)==ACCOUNT_TRADE_MODE_CONTEST,criticalFailure);}

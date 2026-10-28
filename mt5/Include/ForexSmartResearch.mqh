@@ -43,7 +43,7 @@ bool NewsClear(string symbol){
 int ResearchSignal(int i,double a,double &stop,double &target){
  string s=symbols[i];ResearchConfig c=Config(s);lastStrategy=StrategyID(s);lastRegime="NO_TRADE";
  if(!c.enabled||!ResearchSession()||!NewsClear(s))return 0;
- double h=Value(research[i].h50,1),hprev=Value(research[i].h50,2),h200=Value(research[i].h200,1),adx=Value(research[i].adx,1),m=Value(research[i].m20,1),baseATR=Value(atr[i],10);
+ double h=Value(research[i].h50,1),hprev=Value(research[i].h50,2),h200=Value(research[i].h200,1),adx=Value(research[i].adx,1),m=Value(research[i].m20,1),baseATR=Value(atrHandles[i],10);
  if(h==EMPTY_VALUE||hprev==EMPTY_VALUE||h200==EMPTY_VALUE||adx==EMPTY_VALUE||m==EMPTY_VALUE||baseATR==EMPTY_VALUE||baseATR<=0)return 0;
  MqlRates r[];ArraySetAsSeries(r,true);if(CopyRates(s,PERIOD_M5,1,RangeBars+3,r)!=RangeBars+3)return 0;
  double hi=r[2].high,lo=r[2].low;for(int k=3;k<RangeBars+2;k++){hi=MathMax(hi,r[k].high);lo=MathMin(lo,r[k].low);}

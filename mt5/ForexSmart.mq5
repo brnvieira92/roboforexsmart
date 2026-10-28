@@ -45,11 +45,11 @@ const ulong MAGIC=2601027;
 CTrade trade;
 string symbols[];
 string entrySymbols[];
-int fast[],slow[],atr[];
+int fastHandles[],slowHandles[],atrHandles[];
 datetime lastbar[];
 double dayEquity=0;
 int dayKey=-1;
-bool paused=false;
+bool entriesPaused=false;
 bool lossNotified=false;
 string latest="Inicializando";
 #include "Include/ForexSmartAccount.mqh"
@@ -88,7 +88,7 @@ void Manage(){
  if(!Permissions()||Identity()!=accountIdentity)return; // Existing server SL/TP remain in place when terminal cannot trade.
  for(int p=PositionsTotal()-1;p>=0;p--){ulong ticket=PositionGetTicket(p);if(ticket==0||!OwnedPosition(ticket))continue;
  string s=PositionGetString(POSITION_SYMBOL);int idx=-1;for(int j=0;j<ArraySize(symbols);j++)if(symbols[j]==s)idx=j;if(idx<0)continue;
- double a=Value(atr[idx],1);if(a==EMPTY_VALUE||a<=0)continue;
+ double a=Value(atrHandles[idx],1);if(a==EMPTY_VALUE||a<=0)continue;
  bool buy=PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY;MqlTick t;if(!SymbolInfoTick(s,t))continue;
  if(TimeCurrent()-t.time>30)continue;
  double current=buy?t.bid:t.ask,entry=PositionGetDouble(POSITION_PRICE_OPEN),gain=(buy?1:-1)*(current-entry);
@@ -105,7 +105,7 @@ void Manage(){
  string traceKey=StateKey("t."+(string)PositionGetInteger(POSITION_IDENTIFIER));datetime traceBar=iTime(s,PERIOD_M5,0);
  if(!GlobalVariableCheck(traceKey)||GlobalVariableGet(traceKey)!=(double)traceBar){GlobalVariableSet(traceKey,(double)traceBar);Journal("management_state",s+" | gain="+DoubleToString(gain,8)+" | trigger="+DoubleToString(managementATR,8)+" | partial_trigger="+DoubleToString(1.5*managementATR,8)+" | current_sl="+DoubleToString(old,8));}
  // Reassess target from current trend strength, bounded relative to entry.
- double f=Value(fast[idx],1),slo=Value(slow[idx],1);
+ double f=Value(fastHandles[idx],1),slo=Value(slowHandles[idx],1);
  if(!researchPosition&&f!=EMPTY_VALUE&&slo!=EMPTY_VALUE){
  double strength=MathMin(1.0,MathAbs(f-slo)/a);
  double targetPoints=MathMax(MinTPPoints,MathMin(MaxTPPoints,a/point*(1+2*strength)));
@@ -135,7 +135,7 @@ void Manage(){
 }
 void Scan(int i){
  string s=symbols[i];bool configured=false;for(int j=0;j<ArraySize(entrySymbols);j++)if(s==entrySymbols[j])configured=true;if(!configured)return;datetime bar=iTime(s,PERIOD_M5,0);if(bar==0||bar==lastbar[i])return;
- double f=Value(fast[i],1),sl=Value(slow[i],1),a=Value(atr[i],1);if(f==EMPTY_VALUE||sl==EMPTY_VALUE||a==EMPTY_VALUE||a<=0)return;
+ double f=Value(fastHandles[i],1),sl=Value(slowHandles[i],1),a=Value(atrHandles[i],1);if(f==EMPTY_VALUE||sl==EMPTY_VALUE||a==EMPTY_VALUE||a<=0)return;
  MqlRates rates[];ArraySetAsSeries(rates,true);if(CopyRates(s,PERIOD_M5,1,3,rates)!=3)return;
  lastbar[i]=bar;GlobalVariableSet(BarKey(s),bar);
  lastStrategy="LEGACY";lastRegime="LEGACY";
@@ -175,8 +175,8 @@ int OnInit(){
  ArrayResize(fast,n);ArrayResize(slow,n);ArrayResize(atr,n);ArrayResize(lastbar,n);ArrayInitialize(lastbar,0);
  for(int i=0;i<n;i++){StringTrimLeft(symbols[i]);StringTrimRight(symbols[i]);for(int j=0;j<i;j++)if(symbols[j]==symbols[i])return INIT_PARAMETERS_INCORRECT;if(!SymbolSelect(symbols[i],true))return INIT_FAILED;
  if(GlobalVariableCheck(BarKey(symbols[i])))lastbar[i]=(datetime)GlobalVariableGet(BarKey(symbols[i]));
- fast[i]=iMA(symbols[i],PERIOD_M5,9,0,MODE_EMA,PRICE_CLOSE);slow[i]=iMA(symbols[i],PERIOD_M5,21,0,MODE_EMA,PRICE_CLOSE);atr[i]=iATR(symbols[i],PERIOD_M5,14);
- if(fast[i]==INVALID_HANDLE||slow[i]==INVALID_HANDLE||atr[i]==INVALID_HANDLE)return INIT_FAILED;}
+ fastHandles[i]=iMA(symbols[i],PERIOD_M5,9,0,MODE_EMA,PRICE_CLOSE);slowHandles[i]=iMA(symbols[i],PERIOD_M5,21,0,MODE_EMA,PRICE_CLOSE);atrHandles[i]=iATR(symbols[i],PERIOD_M5,14);
+ if(fastHandles[i]==INVALID_HANDLE||slowHandles[i]==INVALID_HANDLE||atrHandles[i]==INVALID_HANDLE)return INIT_FAILED;}
  if(StrategyMode==MULTISTRATEGY&&!ResearchInit())return INIT_FAILED;
  trade.SetExpertMagicNumber(MAGIC);trade.SetDeviationInPoints(SlippageReservePoints);RefreshDay();EventSetTimer(2);
  RecoverState();
@@ -206,7 +206,7 @@ void OnTimer(){
  ObjectSetString(0,"FS.arm",OBJPROP_TEXT,(sessionState.authorized?"DESARMAR ":"ATIVAR ")+AccountKind());
  ObjectSetInteger(0,"FS.arm",OBJPROP_BGCOLOR,sessionState.authorized&&AccountKind()=="REAL"?clrRed:clrDarkGreen);
  int wins,losses;double net;Metrics(wins,losses,net);
- Comment("smartTrade | FOREX SMART | ",AccountKind()," | ",ModeName(),"\nSessão: ",sessionState.authorized?"AUTORIZADA":"DESARMADA",emergencyStop?" | EMERGÊNCIA":"","\nModo: ",AutoTrade?"Automático":"Alertas",paused?" | PAUSADO":"",LossLimit()?" | Limite diário":"",
+ Comment("smartTrade | FOREX SMART | ",AccountKind()," | ",ModeName(),"\nSessão: ",sessionState.authorized?"AUTORIZADA":"DESARMADA",emergencyStop?" | EMERGÊNCIA":"","\nModo: ",AutoTrade?"Automático":"Alertas",entriesPaused?" | PAUSADO":"",LossLimit()?" | Limite diário":"",
  "\nSaldo: ",DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE),2)," | Equity: ",DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY),2),
  "\nRisco %: ",RiskPercent," | Agregado estimado: ",DoubleToString(AggregateRisk(),2)," | Dia: ",DoubleToString(RelevantEquity()-dayEquity,2),
  "\nRegime: ",lastRegime," | Estratégia: ",lastStrategy," | Rejeição: ",lastReject,
@@ -224,7 +224,7 @@ void OnChartEvent(const int id,const long &l,const double &d,const string &s){if
  ReportSession();
  }
  if(s=="FS.emergency"){emergencyStop=!emergencyStop;sessionState.authorized=false;Notify("Emergência: "+(emergencyStop?"novas entradas bloqueadas; stops mantidos":"desativada; reative manualmente"));}
- if(s=="FS.pause"){paused=!paused;ObjectSetString(0,s,OBJPROP_TEXT,paused?"Retomar entradas":"Pausar entradas");}
+ if(s=="FS.pause"){entriesPaused=!entriesPaused;ObjectSetString(0,s,OBJPROP_TEXT,entriesPaused?"Retomar entradas":"Pausar entradas");}
  if(s=="FS.status")ReportSession();ObjectSetInteger(0,s,OBJPROP_STATE,false);}
 void OnTradeTransaction(const MqlTradeTransaction &trans,const MqlTradeRequest &req,const MqlTradeResult &res){
  if(Identity()!=accountIdentity)return;
@@ -246,4 +246,4 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,const MqlTradeRequest &
  for(int p=0;p<PositionsTotal();p++){if(PositionGetTicket(p)>0&&(ulong)PositionGetInteger(POSITION_IDENTIFIER)==positionID){if(!GlobalVariableCheck(StateKey("r."+(string)positionID)))GlobalVariableSet(StateKey("r."+(string)positionID),MathAbs(PositionGetDouble(POSITION_PRICE_OPEN)-PositionGetDouble(POSITION_SL)));break;}}}
  Journal((string)trans.deal,message+" | commission="+DoubleToString(HistoryDealGetDouble(trans.deal,DEAL_COMMISSION),2)+" | swap="+DoubleToString(HistoryDealGetDouble(trans.deal,DEAL_SWAP),2));Notify(message,strategy);
 }
-void OnDeinit(const int reason){sessionState.authorized=false;ReleaseLease();ResearchRelease();EventKillTimer();for(int i=0;i<ArraySize(fast);i++){IndicatorRelease(fast[i]);IndicatorRelease(slow[i]);IndicatorRelease(atr[i]);}ObjectDelete(0,"FS.pause");ObjectDelete(0,"FS.status");ObjectDelete(0,"FS.arm");ObjectDelete(0,"FS.emergency");Comment("");}
+void OnDeinit(const int reason){sessionState.authorized=false;ReleaseLease();ResearchRelease();EventKillTimer();for(int i=0;i<ArraySize(fast);i++){IndicatorRelease(fastHandles[i]);IndicatorRelease(slowHandles[i]);IndicatorRelease(atrHandles[i]);}ObjectDelete(0,"FS.pause");ObjectDelete(0,"FS.status");ObjectDelete(0,"FS.arm");ObjectDelete(0,"FS.emergency");Comment("");}
