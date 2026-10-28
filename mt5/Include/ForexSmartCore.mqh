@@ -26,6 +26,27 @@ double LegacyTarget(double atr,double point,double fast,double slow,int minimum,
 bool SessionPermitted(bool autoTrade,bool authorized,bool paused,bool emergency,bool connected,bool allowed,bool contest){
  return autoTrade&&authorized&&!paused&&!emergency&&connected&&allowed&&!contest;
 }
+enum EntryBlock {
+ BLOCK_AUTO=1, BLOCK_AUTH=2, BLOCK_PAUSED=4, BLOCK_EMERGENCY=8,
+ BLOCK_CONNECTION=16, BLOCK_TERMINAL=32, BLOCK_EA=64,
+ BLOCK_ACCOUNT=128, BLOCK_EXPERT=256, BLOCK_CONTEST=512, BLOCK_CRITICAL=1024
+};
+int EntryBlocks(bool autoTrade,bool authorized,bool paused,bool emergency,bool connected,
+                bool terminalAllowed,bool eaAllowed,bool accountAllowed,bool expertAllowed,bool contest,bool critical){
+ int mask=0;
+ if(!autoTrade)mask|=BLOCK_AUTO;
+ if(!authorized)mask|=BLOCK_AUTH;
+ if(paused)mask|=BLOCK_PAUSED;
+ if(emergency)mask|=BLOCK_EMERGENCY;
+ if(!connected)mask|=BLOCK_CONNECTION;
+ if(!terminalAllowed)mask|=BLOCK_TERMINAL;
+ if(!eaAllowed)mask|=BLOCK_EA;
+ if(!accountAllowed)mask|=BLOCK_ACCOUNT;
+ if(!expertAllowed)mask|=BLOCK_EXPERT;
+ if(contest)mask|=BLOCK_CONTEST;
+ if(critical)mask|=BLOCK_CRITICAL;
+ return mask;
+}
 double FloorVolume(double requested,double step,double maximum){
  if(step<=0||requested<=0||maximum<=0)return 0;
  return MathFloor(FSMin(requested,maximum)/step)*step;

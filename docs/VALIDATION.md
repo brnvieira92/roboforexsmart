@@ -91,3 +91,13 @@ Demo: uma instância M5, símbolos corretos, configuração LEGACY primeiro, con
 Futuro REAL: mesmo EA, sem recompilar. Desativar Algo Trading antes de trocar login; conferir símbolos, tipo e moeda, risco e comissão da conta. AutoTrade herdado não basta. Após validação e decisão do usuário, permissões e clique ATIVAR REAL autorizam a sessão. Não realizar esse teste com ordens reais nesta tarefa.
 
 Rollback: desarmar entradas e aguardar ficar flat antes de trocar versão; exportar histórico/estados/configuração. No checkout, `git switch --detach 97c2283`, copiar EA e include Telegram originais, compilar e manter AutoTrade=false ao anexar. A v1.10 não tem as proteções novas de sessão e pode negociar com AutoTrade=true herdado. Não apagar os CSVs nem globals novos. Ao voltar à v2, recompile e reative manualmente. Não misture duas versões simultâneas com o mesmo magic.
+
+## v2.01 — diagnóstico de autorização
+
+O CSV enviado pelo usuário continha 12 sinais e 12 bloqueios genéricos de sessão, sem execução. Não permite distinguir qual permissão faltava nem calcular rentabilidade. A sessão aparecer autorizada no painel não comprova todas as permissões nem o estado no instante passado.
+
+O botão Status agora informa tipo de conta, modo, autorização, máscara e todos os bloqueios de sessão ativos. Rejeições distinguem AutoTrade, autorização, pausa, emergência, conexão, permissão do terminal, do EA, da conta, permissão de robôs, CONTEST e falha crítica. O clique de ativação registra diagnóstico no Experts, CSV (`session_status`) e Telegram quando habilitado. Nenhuma senha, token ou login é incluído nesse diagnóstico.
+
+A decisão de entrada foi comparada à implementação anterior em 2.048 combinações e permaneceu equivalente. Os testes locais do núcleo e quatro testes Python passaram; compilação completa MQL5 e diagnóstico no terminal do usuário permanecem pendentes. Essa alteração melhora observabilidade; não comprova qual era a causa dos 12 eventos nem elimina uma restrição legítima.
+
+Atualização: na branch `development/safe-multistrategy`, execute `git pull --ff-only origin development/safe-multistrategy`; copie EA e todos os includes para o MT5, compile F7, confira v2.01 e clique Status antes de qualquer reativação. Não é necessário aguardar um sinal para obter o diagnóstico. Reinstalar/recompilar/reanexar pode desarmar a sessão; registre primeiro o Status e depois autorize conscientemente na demo para testar o estado seguinte.

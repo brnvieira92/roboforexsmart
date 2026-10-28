@@ -23,7 +23,8 @@ bool ExposureAllowed(string s,int direction){int sign=USDExposure(s,direction),c
  return count<MaxSameUSDPositions;
 }
 bool NewOrderPlan(string s,bool buy,double entry,double sl,double target,double &lot,double &expected){
- if(!EntrySession()){Reject("Sessão/permissões não autorizadas");return false;}
+ int sessionBlocks=RuntimeEntryBlocks();
+ if(sessionBlocks!=0){Reject("Sessão: "+EntryBlockDetails(sessionBlocks));return false;}
  if(LossLimit()){Reject("Limite diário");return false;}
  if(!CommissionEstimateConfirmed){Reject("Confirme comissão estimada da conta nos inputs");return false;}
  if(PositionsTotal()+OrdersTotal()>=2||PositionSelect(s)){Reject("Limite/posição existente");return false;}

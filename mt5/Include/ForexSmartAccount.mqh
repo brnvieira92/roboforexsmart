@@ -23,7 +23,29 @@ void SyncAccount(){ObserveAccount(sessionState,AccountInfoInteger(ACCOUNT_LOGIN)
 }
 void Reject(string reason){lastReject=reason;Journal("reject",ModeName()+" | "+lastStrategy+" | "+reason);Print("Entrada bloqueada: ",reason);TelegramQueue("Forex Smart | "+AccountKind()+" | "+ModeName()+" | "+lastStrategy+" | Entrada rejeitada: "+reason);}
 bool Permissions(){return TerminalInfoInteger(TERMINAL_CONNECTED)&&TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)&&MQLInfoInteger(MQL_TRADE_ALLOWED)&&AccountInfoInteger(ACCOUNT_TRADE_ALLOWED)&&AccountInfoInteger(ACCOUNT_TRADE_EXPERT);}
-bool EntrySession(){return SessionPermitted(AutoTrade,sessionState.authorized,paused,emergencyStop,TerminalInfoInteger(TERMINAL_CONNECTED),Permissions(),AccountInfoInteger(ACCOUNT_TRADE_MODE)==ACCOUNT_TRADE_MODE_CONTEST)&&!criticalFailure;}
+int RuntimeEntryBlocks(){return EntryBlocks(AutoTrade,sessionState.authorized,paused,emergencyStop,
+ TerminalInfoInteger(TERMINAL_CONNECTED),TerminalInfoInteger(TERMINAL_TRADE_ALLOWED),
+ MQLInfoInteger(MQL_TRADE_ALLOWED),AccountInfoInteger(ACCOUNT_TRADE_ALLOWED),
+ AccountInfoInteger(ACCOUNT_TRADE_EXPERT),AccountInfoInteger(ACCOUNT_TRADE_MODE)==ACCOUNT_TRADE_MODE_CONTEST,criticalFailure);}
+string EntryBlockDetails(int mask){
+ string reason="";
+ if((mask&BLOCK_AUTO)!=0)reason+="AutoTrade=false; ";
+ if((mask&BLOCK_AUTH)!=0)reason+="sessão desarmada (ativação manual necessária); ";
+ if((mask&BLOCK_PAUSED)!=0)reason+="Pausar entradas ativo; ";
+ if((mask&BLOCK_EMERGENCY)!=0)reason+="emergência ativa; ";
+ if((mask&BLOCK_CONNECTION)!=0)reason+="terminal desconectado; ";
+ if((mask&BLOCK_TERMINAL)!=0)reason+="Algo Trading desabilitado no terminal (TERMINAL_TRADE_ALLOWED=false); ";
+ if((mask&BLOCK_EA)!=0)reason+="negociação desabilitada nas permissões do EA (MQL_TRADE_ALLOWED=false); ";
+ if((mask&BLOCK_ACCOUNT)!=0)reason+="conta sem permissão de negociação (ACCOUNT_TRADE_ALLOWED=false); ";
+ if((mask&BLOCK_EXPERT)!=0)reason+="conta sem permissão para robôs (ACCOUNT_TRADE_EXPERT=false); ";
+ if((mask&BLOCK_CONTEST)!=0)reason+="conta CONTEST não autorizada; ";
+ if((mask&BLOCK_CRITICAL)!=0)reason+="falha crítica interna: consulte Experts e CSV antes de reativar; ";
+ return mask==0?"nenhum bloqueio de sessão; custos e risco ainda precisam passar nas validações":reason;
+}
+bool EntrySession(){return RuntimeEntryBlocks()==0;}
+string SessionDiagnostic(){int mask=RuntimeEntryBlocks();return "Conta="+AccountKind()+" | Modo="+ModeName()+" | Sessão="+(sessionState.authorized?"AUTORIZADA":"DESARMADA")+" | máscara="+(string)mask+" | "+EntryBlockDetails(mask);}
+void ReportSession(){string report=SessionDiagnostic();Journal("session_status",report);Notify(report);}
+
 double RelevantEquity(){
  double actual=AccountInfoDouble(ACCOUNT_EQUITY);
  if(!UseReferenceCapital||AccountInfoInteger(ACCOUNT_TRADE_MODE)!=ACCOUNT_TRADE_MODE_DEMO)return actual;

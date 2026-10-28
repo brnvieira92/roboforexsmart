@@ -37,6 +37,24 @@ int main(){
  bool a=mask&1,b=mask&2,c=mask&4,d=mask&8,e=mask&16,f=mask&32,g=mask&64;
  assert(SessionPermitted(a,b,c,d,e,f,g)==(a&&b&&!c&&!d&&e&&f&&!g));
  }
+ // Exhaustive equivalence: diagnostics preserve the previous authorization gate.
+ for(int bits=0;bits<2048;bits++){
+ bool a=bits&1,b=bits&2,c=bits&4,d=bits&8,e=bits&16,f=bits&32,g=bits&64,h=bits&128,i=bits&256,j=bits&512,k=bits&1024;
+ int mask=EntryBlocks(a,b,c,d,e,f,g,h,i,j,k);
+ bool oldGate=SessionPermitted(a,b,c,d,e,e&&f&&g&&h&&i,j)&&!k;
+ assert((mask==0)==oldGate);
+ assert(((mask&BLOCK_AUTH)!=0)==!b);
+ assert(((mask&BLOCK_TERMINAL)!=0)==!f);
+ assert(((mask&BLOCK_EA)!=0)==!g);
+ assert(((mask&BLOCK_ACCOUNT)!=0)==!h);
+ assert(((mask&BLOCK_EXPERT)!=0)==!i);
+ assert(((mask&BLOCK_CRITICAL)!=0)==k);
+ }
+ // An authorized session can still be blocked by a single independent permission.
+ assert(EntryBlocks(true,true,false,false,true,false,true,true,true,false,false)==BLOCK_TERMINAL);
+ assert(EntryBlocks(true,true,false,false,true,true,false,true,true,false,false)==BLOCK_EA);
+ assert(EntryBlocks(true,true,false,false,true,true,true,false,true,false,false)==BLOCK_ACCOUNT);
+ assert(EntryBlocks(true,true,false,false,true,true,true,true,false,false,false)==BLOCK_EXPERT);
  assert(TrailingCandidate(true,100,103,2)==101);
  assert(TrailingCandidate(false,100,97,2)==99);
  assert(!StopImproves(true,101,100,.01));assert(!StopImproves(false,99,100,.01));

@@ -1,5 +1,5 @@
 #property strict
-#property version "2.00"
+#property version "2.01"
 #property description "Forex Smart | smartTrade | Demo validation required"
 #include <Trade/Trade.mqh>
 #include "Include/ForexSmartTelegram.mqh"
@@ -220,11 +220,12 @@ void OnChartEvent(const int id,const long &l,const double &d,const string &s){if
  if(s=="FS.arm"){
  if(Identity()!=accountIdentity){sessionState.authorized=false;return;}
  if(AutoTrade&&Permissions()&&AccountKind()!="CONTEST"&&!emergencyStop){bool wasAuthorized=sessionState.authorized;criticalFailure=false;RecoverState();sessionState.authorized=!wasAuthorized&&!criticalFailure;Notify("Sessão "+AccountKind()+(sessionState.authorized?" autorizada":" desarmada"));}
- else Notify("Ativação exige AutoTrade, permissões e emergência desativada.");
+ else {Notify("Ativação não concluída: "+EntryBlockDetails(RuntimeEntryBlocks()));}
+ ReportSession();
  }
  if(s=="FS.emergency"){emergencyStop=!emergencyStop;sessionState.authorized=false;Notify("Emergência: "+(emergencyStop?"novas entradas bloqueadas; stops mantidos":"desativada; reative manualmente"));}
  if(s=="FS.pause"){paused=!paused;ObjectSetString(0,s,OBJPROP_TEXT,paused?"Retomar entradas":"Pausar entradas");}
- if(s=="FS.status")Notify("Forex Smart: "+(AutoTrade?"automático":"alertas")+" | posições "+(string)PositionsTotal());ObjectSetInteger(0,s,OBJPROP_STATE,false);}
+ if(s=="FS.status")ReportSession();ObjectSetInteger(0,s,OBJPROP_STATE,false);}
 void OnTradeTransaction(const MqlTradeTransaction &trans,const MqlTradeRequest &req,const MqlTradeResult &res){
  if(Identity()!=accountIdentity)return;
  if(trans.type!=TRADE_TRANSACTION_DEAL_ADD||!HistoryDealSelect(trans.deal))return;
