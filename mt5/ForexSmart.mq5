@@ -1,7 +1,8 @@
 #property strict
-#property version "1.00"
+#property version "1.10"
 #property description "Forex Smart | smartTrade | Demo validation required"
 #include <Trade/Trade.mqh>
+#include "Include/ForexSmartTelegram.mqh"
 input bool AutoTrade=false;
 input string Pairs="EURUSD#,USDJPY#,GBPUSD#,USDCHF#";
 input double RiskPercent=0.25;
@@ -10,6 +11,7 @@ input int MaxTPPoints=500;
 input int MaxSpreadPoints=25;
 input double DailyLossPercent=2.0;
 input bool PushNotifications=false;
+input bool TelegramNotifications=false;
 const ulong MAGIC=2601027;
 CTrade trade;
 string symbols[];
@@ -18,8 +20,9 @@ datetime lastbar[];
 double dayEquity=0;
 int dayKey=-1;
 bool paused=false;
+bool lossNotified=false;
 string latest="Inicializando";
-void Notify(string text){latest=text; Print(text); Alert(text); if(PushNotifications) SendNotification(text);}
+void Notify(string text){latest=text; Print(text); Alert(text); if(PushNotifications) SendNotification(text);TelegramQueue("Forex Smart | "+(AccountInfoInteger(ACCOUNT_TRADE_MODE)==ACCOUNT_TRADE_MODE_DEMO?"DEMO":"REAL/CONTEST")+"\nServidor: "+TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS)+"\n"+text);}
 string Key(ulong id){return "FS.partial."+(string)AccountInfoInteger(ACCOUNT_LOGIN)+"."+(string)id;}
 double Value(int handle,int shift){double b[1]; if(CopyBuffer(handle,0,shift,1,b)!=1) return EMPTY_VALUE; return b[0];}
 void Journal(string type,string detail){
@@ -29,7 +32,7 @@ void Journal(string type,string detail){
 }
 bool Success(){uint r=trade.ResultRetcode();return r==TRADE_RETCODE_DONE||r==TRADE_RETCODE_DONE_PARTIAL;}
 void RefreshDay(){MqlDateTime d;TimeToStruct(TimeTradeServer(),d);int key=d.year*1000+d.day_of_year;
- if(key!=dayKey){dayKey=key;string k="FS.day."+(string)AccountInfoInteger(ACCOUNT_LOGIN)+"."+(string)key;
+ if(key!=dayKey){lossNotified=false;dayKey=key;string k="FS.day."+(string)AccountInfoInteger(ACCOUNT_LOGIN)+"."+(string)key;
  if(GlobalVariableCheck(k))dayEquity=GlobalVariableGet(k);else{dayEquity=AccountInfoDouble(ACCOUNT_EQUITY);GlobalVariableSet(k,dayEquity);}}}
 bool LossLimit(){return dayEquity<=0||AccountInfoDouble(ACCOUNT_EQUITY)<=dayEquity*(1-DailyLossPercent/100);}
 double Price(string s,double p){double tick=SymbolInfoDouble(s,SYMBOL_TRADE_TICK_SIZE);return NormalizeDouble(MathRound(p/tick)*tick,(int)SymbolInfoInteger(s,SYMBOL_DIGITS));}
@@ -55,7 +58,8 @@ void Manage(){
  double distance=MathMax(a, (MathMax(SymbolInfoInteger(s,SYMBOL_TRADE_STOPS_LEVEL),SymbolInfoInteger(s,SYMBOL_TRADE_FREEZE_LEVEL))+2)*point);
  if(gain>=a){double next=Price(s,buy?MathMax(entry,current-distance):MathMin(entry,current+distance));
  if((buy&&(old==0||next>old+point)&&next<t.bid-distance+point)||(!buy&&(old==0||next<old-point)&&next>t.ask+distance-point)){
- if(!trade.PositionModify(ticket,next,tp)||!Success())Print("Trailing rejected: ",trade.ResultRetcodeDescription());}}
+ if(!trade.PositionModify(ticket,next,tp)||!Success())Print("Trailing rejected: ",trade.ResultRetcodeDescription());
+ else if((buy&&old<entry&&next>=entry)||(!buy&&(old==0||old>entry)&&next<=entry))TelegramQueue("Forex Smart | Stop no preço de entrada ou melhor | "+s+" | SL "+DoubleToString(next,(int)SymbolInfoInteger(s,SYMBOL_DIGITS))+" | Custos ainda podem causar perda.");}}
  ulong id=(ulong)PositionGetInteger(POSITION_IDENTIFIER);string key=Key(id);
  if(gain>=1.5*a&&!GlobalVariableCheck(key)){
  double vol=PositionGetDouble(POSITION_VOLUME),part=Volume(s,vol/2),minimum=SymbolInfoDouble(s,SYMBOL_VOLUME_MIN);
@@ -99,7 +103,9 @@ int OnInit(){
  if(fast[i]==INVALID_HANDLE||slow[i]==INVALID_HANDLE||atr[i]==INVALID_HANDLE)return INIT_FAILED;}
  trade.SetExpertMagicNumber(MAGIC);trade.SetDeviationInPoints(10);RefreshDay();EventSetTimer(2);
  ChartSetInteger(0,CHART_COLOR_BACKGROUND,clrBlack);ChartSetInteger(0,CHART_COLOR_FOREGROUND,clrWhite);ChartSetInteger(0,CHART_COLOR_CANDLE_BULL,clrLime);
- Button("FS.pause","Pausar entradas",15);Button("FS.status","Status",155);return INIT_SUCCEEDED;
+ Button("FS.pause","Pausar entradas",15);Button("FS.status","Status",155);
+ if(TelegramInit(TelegramNotifications))TelegramQueue("Forex Smart conectado | "+(AccountInfoInteger(ACCOUNT_TRADE_MODE)==ACCOUNT_TRADE_MODE_DEMO?"DEMO":"REAL/CONTEST")+" | "+(AutoTrade?"Automático":"Alertas")+" | Pares: "+Pairs);
+ return INIT_SUCCEEDED;
 }
 void Metrics(int &wins,int &losses,double &net){
  wins=0;losses=0;net=0;
@@ -112,14 +118,17 @@ void Metrics(int &wins,int &losses,double &net){
  if(entry==DEAL_ENTRY_OUT||entry==DEAL_ENTRY_OUT_BY||entry==DEAL_ENTRY_INOUT){if(result>0)wins++;else if(result<0)losses++;}
  }
 }
-void OnTimer(){RefreshDay();Manage();for(int i=0;i<ArraySize(symbols);i++)Scan(i);
+void OnTimer(){RefreshDay();
+ if(LossLimit()&&!lossNotified){lossNotified=true;Notify("Limite diário atingido: novas entradas bloqueadas; gestão continua.");}Manage();for(int i=0;i<ArraySize(symbols);i++)Scan(i);
  int wins,losses;double net;Metrics(wins,losses,net);
  Comment("smartTrade | FOREX SMART\nModo: ",AutoTrade?"Automático":"Alertas",paused?" | PAUSADO":"",LossLimit()?" | Limite diário":"",
  "\nSaldo: ",DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE),2)," | Equity: ",DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY),2),
  "\nPosições da conta: ",PositionsTotal()," / 2 | Pares: ",ArraySize(symbols),
  "\nNegócios de saída positivos/negativos: ",wins," / ",losses," | Líquido histórico EA: ",DoubleToString(net,2),
  "\nServidor: ",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS)," | UTC: ",TimeToString(TimeGMT(),TIME_SECONDS),
- "\n",latest);}
+ "\nTelegram: ",TgReady?"habilitado (ver Experts)":"desativado/indisponível",
+ "\n",latest);
+ TelegramPump();}
 void OnChartEvent(const int id,const long &l,const double &d,const string &s){if(id!=CHARTEVENT_OBJECT_CLICK)return;
  if(s=="FS.pause"){paused=!paused;ObjectSetString(0,s,OBJPROP_TEXT,paused?"Retomar entradas":"Pausar entradas");}
  if(s=="FS.status")Notify("Forex Smart: "+(AutoTrade?"automático":"alertas")+" | posições "+(string)PositionsTotal());ObjectSetInteger(0,s,OBJPROP_STATE,false);}
@@ -130,6 +139,7 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,const MqlTradeRequest &
  string origin=magic==(long)MAGIC?"Robô":(magic==0?"Humana":"Outro robô");
  string action=entry==DEAL_ENTRY_IN?"entrada":entry==DEAL_ENTRY_INOUT?"reversão":"saída/parcial";
  string message=origin+" | "+action+" | "+HistoryDealGetString(trans.deal,DEAL_SYMBOL)+" | resultado líquido do negócio "+DoubleToString(net,2);
+ message+=" | "+(type==DEAL_TYPE_BUY?"COMPRA":"VENDA")+" | lote "+DoubleToString(HistoryDealGetDouble(trans.deal,DEAL_VOLUME),8)+" | preço "+DoubleToString(HistoryDealGetDouble(trans.deal,DEAL_PRICE),(int)SymbolInfoInteger(HistoryDealGetString(trans.deal,DEAL_SYMBOL),SYMBOL_DIGITS))+" | "+AccountInfoString(ACCOUNT_CURRENCY)+" | negócio "+(string)trans.deal;
  Journal((string)trans.deal,message);Notify(message);
 }
 void OnDeinit(const int reason){EventKillTimer();for(int i=0;i<ArraySize(fast);i++){IndicatorRelease(fast[i]);IndicatorRelease(slow[i]);IndicatorRelease(atr[i]);}ObjectDelete(0,"FS.pause");ObjectDelete(0,"FS.status");Comment("");}

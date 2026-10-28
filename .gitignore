@@ -2,3 +2,7 @@ __pycache__/
 *.py[cod]
 *.ex5
 *.log
+
+# Local Telegram credentials and terminal parameter exports
+ForexSmart-telegram.txt
+*.set
