@@ -13,7 +13,7 @@ double AggregateRisk(){double sum=0;
  for(int i=PositionsTotal()-1;i>=0;i--){ulong ticket=PositionGetTicket(i);if(ticket==0)continue;string s=PositionGetString(POSITION_SYMBOL);double sl=PositionGetDouble(POSITION_SL),vol=PositionGetDouble(POSITION_VOLUME);bool buy=PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY;double pnl;
  MqlTick tick;if(!SymbolInfoTick(s,tick)||TimeCurrent()-tick.time>30)return 1e100;
  if(sl<=0||!OrderCalcProfit(buy?ORDER_TYPE_BUY:ORDER_TYPE_SELL,s,vol,buy?tick.bid:tick.ask,sl,pnl))return 1e100;
- sum+=MathMax(0,-pnl)+CommissionPerLotRoundTurn*vol;}
+ sum+=MathMax(0,-pnl)+CommissionPerLotRoundTurn*vol+TechnicalExtraReserve(ticket,vol);}
  // Unknown pending risk is blocked rather than assumed zero.
  if(OrdersTotal()>0)return 1e100;
  return sum;
@@ -38,12 +38,12 @@ bool NewOrderPlan(string s,bool buy,double entry,double sl,double target,double 
  if(distance<=0||spread/distance>MaxSpreadStopRatio){Reject("Spread excessivo em relação ao SL");return false;}
  if(!OrderCalcProfit(buy?ORDER_TYPE_BUY:ORDER_TYPE_SELL,s,1,entry,sl,loss)||loss>=0||!OrderCalcProfit(buy?ORDER_TYPE_BUY:ORDER_TYPE_SELL,s,1,entry,entry+(buy?-1:1)*SlippageReservePoints*point,slip)){Reject("Falha de cálculo de risco");return false;}
  if(!MathIsValidNumber(loss)||!MathIsValidNumber(slip)){Reject("Risco não finito");return false;}
- double cost=CommissionPerLotRoundTurn+MathAbs(slip); // spread is already embedded in executable bid/ask prices.
- double spreadCash=0;if(!OrderCalcProfit(buy?ORDER_TYPE_BUY:ORDER_TYPE_SELL,s,1,entry,entry+(buy?-spread:spread),spreadCash))return false;
+ double cost=CommissionPerLotRoundTurn+MathAbs(slip)+(EntryPlanner==TECHNICAL_PLAN?PlanSwapReservePerLot:0); // spread is already embedded in executable bid/ask prices.
+ double spreadCash=0;if(!OrderCalcProfit(buy?ORDER_TYPE_BUY:ORDER_TYPE_SELL,s,1,entry,entry+(buy?-spread:spread),spreadCash)){Reject("Falha ao converter spread para moeda da conta");return false;}
  double ratioLimit=MaxCostRiskRatio;if(StrategyMode==MULTISTRATEGY){ResearchConfig config=Config(s);ratioLimit=MathMin(ratioLimit,config.maxCost);}
  if((cost+MathAbs(spreadCash))/MathAbs(loss)>ratioLimit){Reject("Custo/risco excessivo");return false;}
  double perLot=MathAbs(loss)+cost,budget=RiskBudget(RelevantEquity(),RiskPercent);
- lot=Volume(s,MathMin(SymbolInfoDouble(s,SYMBOL_VOLUME_MAX),budget/perLot));expected=lot*perLot;
+ lot=EntryPlanner==TECHNICAL_PLAN?NormalizeDouble(CostedVolume(budget,MathAbs(loss),cost,SymbolInfoDouble(s,SYMBOL_VOLUME_STEP),SymbolInfoDouble(s,SYMBOL_VOLUME_MAX)),8):Volume(s,MathMin(SymbolInfoDouble(s,SYMBOL_VOLUME_MAX),budget/perLot));expected=lot*perLot;
  if(lot<SymbolInfoDouble(s,SYMBOL_VOLUME_MIN)||lot<=0||expected>budget+1e-8){Reject("Lote mínimo excede risco");return false;}
  lastAggregateRisk=AggregateRisk();if(lastAggregateRisk+expected>RiskBudget(RelevantEquity(),MaxAggregateRiskPercent)){Reject("Risco agregado");return false;}
  double margin;if(!OrderCalcMargin(buy?ORDER_TYPE_BUY:ORDER_TYPE_SELL,s,lot,entry,margin)||margin>AccountInfoDouble(ACCOUNT_MARGIN_FREE)*0.9){Reject("Margem insuficiente/reserva de 10%");return false;}

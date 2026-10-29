@@ -1,9 +1,10 @@
 #property strict
-#property version "2.02"
+#property version "2.10"
 #property description "Forex Smart | smartTrade | Demo validation required"
 #include <Trade/Trade.mqh>
 #include "Include/ForexSmartTelegram.mqh"
 #include "Include/ForexSmartCore.mqh"
+#include "Include/ForexSmartPlanMath.mqh"
 input bool AutoTrade=false;
 input string Pairs="EURUSD#,USDJPY#,GBPUSD#,USDCHF#";
 input double RiskPercent=0.25;
@@ -41,6 +42,23 @@ input int ResearchStartHour=8,ResearchEndHour=20;
 input bool UseEconomicCalendar=true;
 input bool AllowResearchWithoutCalendar=false;
 input int NewsMinutes=30;
+// Experimental planner: disabled until comparison against PREVIOUS_PLAN.
+input EntryPlannerSelection EntryPlanner=PREVIOUS_PLAN;
+input bool PlanSaveSignalSnapshots=true;
+input ENUM_TIMEFRAMES PlanEURTimeframe=PERIOD_M5;
+input ENUM_TIMEFRAMES PlanJPYTimeframe=PERIOD_M5;
+input ENUM_TIMEFRAMES PlanCHFTimeframe=PERIOD_M5;
+input ENUM_TIMEFRAMES PlanGBPTimeframe=PERIOD_M5;
+input double PlanEURATR=1.5,PlanJPYATR=1.5,PlanCHFATR=1.5,PlanGBPATR=1.5;
+input double PlanEURBufferPips=2,PlanJPYBufferPips=2,PlanCHFBufferPips=2,PlanGBPBufferPips=2;
+input double PlanEURMaxStopPips=20,PlanJPYMaxStopPips=30,PlanCHFMaxStopPips=25,PlanGBPMaxStopPips=30;
+input double PlanMinStopPips=0,PlanBufferATR=0.1,PlanBufferSpread=1.0;
+input int PlanHistoryBars=250,PlanStructureLookback=60,PlanPivotLeft=2,PlanPivotRight=2,PlanMaxStructureAge=12;
+input double PlanMaxTargetR=3,PlanMaxEntryDriftATR=0.5,PlanSwapReservePerLot=0;
+input double PlanEURTrailR=1.5,PlanJPYTrailR=1.5,PlanCHFTrailR=1.5,PlanGBPTrailR=1.5;
+input double PlanPartialR=1.5;
+input PlannedExitSelection PlanExitPolicy=PARTIAL_AND_TRAIL;
+input PlannedTrailSelection PlanTrailPolicy=CONFIRMED_STRUCTURE;
 const ulong MAGIC=2601027;
 CTrade trade;
 string symbols[];
@@ -52,6 +70,7 @@ int dayKey=-1;
 bool entriesPaused=false;
 bool lossNotified=false;
 string latest="Inicializando";
+string activePlanID="";
 #include "Include/ForexSmartAccount.mqh"
 #include "Include/ForexSmartResearch.mqh"
 #include "Include/ForexSmartRisk.mqh"
@@ -83,10 +102,12 @@ void RefreshDay(){MqlDateTime d;TimeToStruct(TimeTradeServer(),d);int key=d.year
 bool LossLimit(){return DailyBlocked(RelevantEquity(),dayEquity,DailyLossPercent);}
 double Price(string s,double p){double tick=SymbolInfoDouble(s,SYMBOL_TRADE_TICK_SIZE);if(tick<=0||!MathIsValidNumber(p))return 0;return NormalizeDouble(MathRound(p/tick)*tick,(int)SymbolInfoInteger(s,SYMBOL_DIGITS));}
 double Volume(string s,double v){double step=SymbolInfoDouble(s,SYMBOL_VOLUME_STEP);return NormalizeDouble(FloorVolume(v,step,SymbolInfoDouble(s,SYMBOL_VOLUME_MAX)),8);}
+#include "Include/ForexSmartPlanner.mqh"
 #include "Include/ForexSmartRecovery.mqh"
 void Manage(){
  if(!Permissions()||Identity()!=accountIdentity)return; // Existing server SL/TP remain in place when terminal cannot trade.
  for(int p=PositionsTotal()-1;p>=0;p--){ulong ticket=PositionGetTicket(p);if(ticket==0||!OwnedPosition(ticket))continue;
+ if(IsTechnicalPosition()){ManageTechnicalPosition(ticket);continue;}
  string s=PositionGetString(POSITION_SYMBOL);int idx=-1;for(int j=0;j<ArraySize(symbols);j++)if(symbols[j]==s)idx=j;if(idx<0)continue;
  double a=Value(atrHandles[idx],1);if(a==EMPTY_VALUE||a<=0)continue;
  bool buy=PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY;MqlTick t;if(!SymbolInfoTick(s,t))continue;
@@ -134,6 +155,7 @@ void Manage(){
  }
 }
 void Scan(int i){
+ activePlanID="";
  string s=symbols[i];bool configured=false;for(int j=0;j<ArraySize(entrySymbols);j++)if(s==entrySymbols[j])configured=true;if(!configured)return;datetime bar=iTime(s,PERIOD_M5,0);if(bar==0||bar==lastbar[i])return;
  double f=Value(fastHandles[i],1),sl=Value(slowHandles[i],1),a=Value(atrHandles[i],1);if(f==EMPTY_VALUE||sl==EMPTY_VALUE||a==EMPTY_VALUE||a<=0)return;
  MqlRates rates[];ArraySetAsSeries(rates,true);if(CopyRates(s,PERIOD_M5,1,3,rates)!=3)return;
@@ -147,23 +169,44 @@ void Scan(int i){
  double point=SymbolInfoDouble(s,SYMBOL_POINT);int maxSpread=MaxSpreadPoints;if(StrategyMode==MULTISTRATEGY){ResearchConfig config=Config(s);maxSpread=MathMin(maxSpread,config.spread);}
  if((tick.ask-tick.bid)/point>maxSpread){Reject("Spread máximo: "+s);return;}
  string side=buy?"COMPRA":"VENDA";Notify("Oportunidade "+side+" "+s,lastStrategy);Journal("signal",side+" "+s);
+ SaveSignalSnapshot(i,buy,rates[0].close,stop,target);
+ if(!SymbolInfoTick(s,tick)||TimeCurrent()-tick.time>30)return;
+ double entry=buy?tick.ask:tick.bid,stopPrice=0,targetPrice=0,lot=0,expected=0;
+ TechnicalPlan technical;bool technicalMode=EntryPlanner==TECHNICAL_PLAN;
+ if(technicalMode){
+ if(!PrepareTechnicalPlan(i,buy,rates[0].close,stop,target,technical)){activePlanID="";return;}
+ // Refresh quote, levels, costs, lot and margin again immediately before dispatch.
+ if(!PrepareTechnicalPlan(i,buy,rates[0].close,stop,target,technical)){activePlanID="";return;}
+ entry=technical.entry;stopPrice=technical.sl;targetPrice=technical.tp;lot=technical.lot;expected=technical.risk;
+ }else{
  stop=MathMax(stop,(SymbolInfoInteger(s,SYMBOL_TRADE_STOPS_LEVEL)+2)*point);
- double entry=buy?tick.ask:tick.bid,stopPrice=Price(s,entry+(buy?-stop:stop)),targetPrice=Price(s,entry+(buy?target:-target));
- double lot=0,expected=0;
+ stopPrice=Price(s,entry+(buy?-stop:stop));targetPrice=Price(s,entry+(buy?target:-target));
  if(!NewOrderPlan(s,buy,entry,stopPrice,targetPrice,lot,expected))return;
- // Recheck account immediately before dispatch; shared lease excludes other local instances.
- if(Identity()!=accountIdentity||!OwnLease()||!EntrySession()){Reject("Sessão alterada antes do envio");return;}
+ }
+ if(Identity()!=accountIdentity||!OwnLease()||!EntrySession()){Reject("Sessão alterada antes do envio");activePlanID="";return;}
+ if(technicalMode){MqlTick finalTick;
+ if(iTime(s,PERIOD_M5,0)!=bar||!SymbolInfoTick(s,finalTick)||TimeCurrent()-finalTick.time>30||TimeTradeServer()-technical.created>5||MathAbs((buy?finalTick.ask:finalTick.bid)-entry)>SlippageReservePoints*point+1e-12||finalTick.ask-finalTick.bid>technical.quoteAsk-technical.quoteBid+1e-12){Reject("Cotação/candle mudou antes do envio; plano descartado sem ordem");activePlanID="";return;}}
+ if(technicalMode&&!SaveTechnicalPlan(PendingPlanPath(s),technical)){PlanCritical("Plano pré-envio não pôde ser persistido; nenhuma ordem enviada");activePlanID="";return;}
  trade.SetTypeFillingBySymbol(s);
- bool ok=trade.PositionOpen(s,buy?ORDER_TYPE_BUY:ORDER_TYPE_SELL,lot,entry,stopPrice,targetPrice,StrategyMode==LEGACY?"Forex Smart":"FS2:"+lastStrategy);
+ string comment=StrategyMode==LEGACY?"Forex Smart":"FS2:"+lastStrategy;
+ if(technicalMode)comment=TechnicalOrderComment(technical);
+ bool ok=trade.PositionOpen(s,buy?ORDER_TYPE_BUY:ORDER_TYPE_SELL,lot,entry,stopPrice,targetPrice,comment);
+ if(technicalMode){technical.order=trade.ResultOrder();if(!SaveTechnicalPlan(PendingPlanPath(s),technical))PlanCritical("Falha persistindo identificador da ordem enviada");}
  if(trade.ResultRetcode()==TRADE_RETCODE_PLACED){criticalFailure=true;sessionState.authorized=false;Journal("critical","Order accepted but not yet filled: reconcile before reactivation");}
  if(!ok||!Success()){Print("Entry rejected: ",trade.ResultRetcodeDescription());Journal("reject",s+" "+trade.ResultRetcodeDescription());
  if(trade.ResultRetcode()==TRADE_RETCODE_INVALID_STOPS||trade.ResultRetcode()==TRADE_RETCODE_NO_MONEY){criticalFailure=true;sessionState.authorized=false;}}
  else {
- if(StrategyMode==MULTISTRATEGY&&HistoryDealSelect(trade.ResultDeal())){ulong id=(ulong)HistoryDealGetInteger(trade.ResultDeal(),DEAL_POSITION_ID);GlobalVariableSet(StateKey("r."+(string)id),MathAbs(entry-stopPrice));GlobalVariableSet(StateKey("q."+(string)id),PolicyCode(lastStrategy));GlobalVariablesFlush();}
- Journal("execution",s+" | requested="+DoubleToString(entry,8)+" | filled="+DoubleToString(trade.ResultPrice(),8)+" | deviation_pts="+DoubleToString(MathAbs(trade.ResultPrice()-entry)/point,2));}
+ // Capture before the post-fill protection audit, which can itself submit a close.
+ double filled=trade.ResultPrice();ulong filledDeal=trade.ResultDeal();
+ if(!technicalMode&&StrategyMode==MULTISTRATEGY&&HistoryDealSelect(filledDeal)){ulong id=(ulong)HistoryDealGetInteger(filledDeal,DEAL_POSITION_ID);GlobalVariableSet(StateKey("r."+(string)id),MathAbs(entry-stopPrice));GlobalVariableSet(StateKey("q."+(string)id),PolicyCode(lastStrategy));GlobalVariablesFlush();}
+ Journal("execution",s+" | requested="+DoubleToString(entry,8)+" | filled="+DoubleToString(filled,8)+" | deviation_pts="+DoubleToString(MathAbs(filled-entry)/point,2)+" | plan="+activePlanID);
+ if(technicalMode)CaptureTechnicalFill(filledDeal);
+ }
+ activePlanID="";
 }
 void Button(string name,string text,int x){ObjectCreate(0,name,OBJ_BUTTON,0,0,0);ObjectSetInteger(0,name,OBJPROP_XDISTANCE,x);ObjectSetInteger(0,name,OBJPROP_YDISTANCE,25);ObjectSetInteger(0,name,OBJPROP_XSIZE,130);ObjectSetString(0,name,OBJPROP_TEXT,text);ObjectSetInteger(0,name,OBJPROP_BGCOLOR,clrDarkGreen);ObjectSetInteger(0,name,OBJPROP_COLOR,clrWhite);}
 int OnInit(){
+ if(!PlanSettingsValid())return INIT_PARAMETERS_INCORRECT;
  if(EUR_CostRatio<=0||JPY_CostRatio<=0||CHF_CostRatio<=0||GBP_CostRatio<=0)return INIT_PARAMETERS_INCORRECT;
  if(ReferenceCapital<=0||CommissionPerLotRoundTurn<0||SlippageReservePoints<0||MaxSpreadStopRatio<=0||MaxCostRiskRatio<=0||MaxAggregateRiskPercent<=0||MaxAggregateRiskPercent>0.5||MaxSameUSDPositions<1||MaxSameUSDPositions>2||RangeBars<3||RangeBars>100||ResearchStartHour<0||ResearchEndHour>24||ResearchStartHour>=ResearchEndHour||NewsMinutes<0||ATRExpansion<=0||BreakoutATRBuffer<0||CHF_RSI_Low<=0||CHF_RSI_High>=100||CHF_RSI_Low>=CHF_RSI_High||CHF_FlatATR<0||EUR_ADX<=0||JPY_ADX<=0||CHF_ADX<=0||GBP_ADX<=0||EUR_StopATR<=0||JPY_StopATR<=0||CHF_StopATR<=0||GBP_StopATR<=0||EUR_RewardR<=0||JPY_RewardR<=0||CHF_RewardR<=0||GBP_RewardR<=0||EUR_SpreadPoints<=0||JPY_SpreadPoints<=0||CHF_SpreadPoints<=0||GBP_SpreadPoints<=0)return INIT_PARAMETERS_INCORRECT;
  if(RiskPercent<=0||RiskPercent>2||MinTPPoints<=0||MaxTPPoints<MinTPPoints||DailyLossPercent<=0||DailyLossPercent>10||MaxSpreadPoints<=0)return INIT_PARAMETERS_INCORRECT;
@@ -206,7 +249,7 @@ void OnTimer(){
  ObjectSetString(0,"FS.arm",OBJPROP_TEXT,(sessionState.authorized?"DESARMAR ":"ATIVAR ")+AccountKind());
  ObjectSetInteger(0,"FS.arm",OBJPROP_BGCOLOR,sessionState.authorized&&AccountKind()=="REAL"?clrRed:clrDarkGreen);
  int wins,losses;double net;Metrics(wins,losses,net);
- Comment("smartTrade | FOREX SMART | ",AccountKind()," | ",ModeName(),"\nSessão: ",sessionState.authorized?"AUTORIZADA":"DESARMADA",emergencyStop?" | EMERGÊNCIA":"","\nModo: ",AutoTrade?"Automático":"Alertas",entriesPaused?" | PAUSADO":"",LossLimit()?" | Limite diário":"",
+ Comment("smartTrade | FOREX SMART | ",AccountKind()," | ",ModeName()," | Plan: ",EntryPlanner==TECHNICAL_PLAN?"TECHNICAL":"PREVIOUS","\nSessão: ",sessionState.authorized?"AUTORIZADA":"DESARMADA",emergencyStop?" | EMERGÊNCIA":"","\nModo: ",AutoTrade?"Automático":"Alertas",entriesPaused?" | PAUSADO":"",LossLimit()?" | Limite diário":"",
  "\nSaldo: ",DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE),2)," | Equity: ",DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY),2),
  "\nRisco %: ",RiskPercent," | Agregado estimado: ",DoubleToString(AggregateRisk(),2)," | Dia: ",DoubleToString(RelevantEquity()-dayEquity,2),
  "\nRegime: ",lastRegime," | Estratégia: ",lastStrategy," | Rejeição: ",lastReject,
@@ -229,6 +272,7 @@ void OnChartEvent(const int id,const long &l,const double &d,const string &s){if
 void OnTradeTransaction(const MqlTradeTransaction &trans,const MqlTradeRequest &req,const MqlTradeResult &res){
  if(Identity()!=accountIdentity)return;
  if(trans.type!=TRADE_TRANSACTION_DEAL_ADD||!HistoryDealSelect(trans.deal))return;
+ CaptureTechnicalFill(trans.deal);AuditTechnicalExit(trans.deal);if(!HistoryDealSelect(trans.deal))return;
  long magic=HistoryDealGetInteger(trans.deal,DEAL_MAGIC);long type=HistoryDealGetInteger(trans.deal,DEAL_TYPE);if(type!=DEAL_TYPE_BUY&&type!=DEAL_TYPE_SELL)return;
  long entry=HistoryDealGetInteger(trans.deal,DEAL_ENTRY);double net=HistoryDealGetDouble(trans.deal,DEAL_PROFIT)+HistoryDealGetDouble(trans.deal,DEAL_SWAP)+HistoryDealGetDouble(trans.deal,DEAL_COMMISSION)+HistoryDealGetDouble(trans.deal,DEAL_FEE);
  string origin=magic==(long)MAGIC?"Robô":(magic==0?"Humana":"Outro robô");
@@ -239,8 +283,9 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,const MqlTradeRequest &
  string dealComment=HistoryDealGetString(trans.deal,DEAL_COMMENT);
  string strategy="LEGACY";if(GlobalVariableCheck(StateKey("q."+(string)positionID)))strategy=PolicyName((int)GlobalVariableGet(StateKey("q."+(string)positionID)));
  if(StringFind(dealComment,"FS2:")==0)strategy=StringSubstr(dealComment,4);
+ if(StringFind(dealComment,"FS3:")==0){int separator=StringFind(dealComment,":",4);strategy=separator>4?StringSubstr(dealComment,4,separator-4):StringSubstr(dealComment,4);}
  if(magic!=(long)MAGIC)strategy="EXTERNAL";
- Journal("deal_metrics","strategy="+strategy+"|symbol="+HistoryDealGetString(trans.deal,DEAL_SYMBOL)+"|position="+(string)positionID+"|deal="+(string)trans.deal+"|entry="+(string)entry+"|net="+DoubleToString(net,8)+"|commission="+DoubleToString(HistoryDealGetDouble(trans.deal,DEAL_COMMISSION),8)+"|swap="+DoubleToString(HistoryDealGetDouble(trans.deal,DEAL_SWAP),8));
+ Journal("deal_metrics","strategy="+strategy+"|symbol="+HistoryDealGetString(trans.deal,DEAL_SYMBOL)+"|position="+(string)positionID+"|deal="+(string)trans.deal+"|entry="+(string)entry+"|net="+DoubleToString(net,8)+"|commission="+DoubleToString(HistoryDealGetDouble(trans.deal,DEAL_COMMISSION),8)+"|swap="+DoubleToString(HistoryDealGetDouble(trans.deal,DEAL_SWAP),8)+"|reason="+EnumToString((ENUM_DEAL_REASON)HistoryDealGetInteger(trans.deal,DEAL_REASON)));
  if(magic==(long)MAGIC&&entry==DEAL_ENTRY_IN&&StringFind(dealComment,"FS2:")==0){
  GlobalVariableSet(StateKey("q."+(string)positionID),PolicyCode(StringSubstr(dealComment,4)));
  for(int p=0;p<PositionsTotal();p++){if(PositionGetTicket(p)>0&&(ulong)PositionGetInteger(POSITION_IDENTIFIER)==positionID){if(!GlobalVariableCheck(StateKey("r."+(string)positionID)))GlobalVariableSet(StateKey("r."+(string)positionID),MathAbs(PositionGetDouble(POSITION_PRICE_OPEN)-PositionGetDouble(POSITION_SL)));break;}}}

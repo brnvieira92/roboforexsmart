@@ -9,6 +9,7 @@ void RecoverState(){
  symbols[n]=symbol;SymbolSelect(symbol,true);fastHandles[n]=iMA(symbol,PERIOD_M5,9,0,MODE_EMA,PRICE_CLOSE);slowHandles[n]=iMA(symbol,PERIOD_M5,21,0,MODE_EMA,PRICE_CLOSE);atrHandles[n]=iATR(symbol,PERIOD_M5,14);lastbar[n]=iTime(symbol,PERIOD_M5,0);
  if(StrategyMode==MULTISTRATEGY){ResearchRelease();if(!ResearchInit())criticalFailure=true;}
  }
+ if(RecoverTechnicalPosition(ticket))continue;
  if(!HistorySelectByPosition(id)){criticalFailure=true;Journal("recovery","History unavailable; entries blocked");continue;}
  bool exited=false;double initialR=0;string policy="LEGACY";
  for(int j=0;j<HistoryDealsTotal();j++){ulong d=HistoryDealGetTicket(j);long type=HistoryDealGetInteger(d,DEAL_TYPE);if(type!=DEAL_TYPE_BUY&&type!=DEAL_TYPE_SELL)continue;

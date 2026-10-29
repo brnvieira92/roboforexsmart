@@ -7,13 +7,18 @@ from collections import Counter
 from pathlib import Path
 
 
-def summarize(path):
+def read_events(path):
     events = []
     with Path(path).open(encoding="utf-8-sig", errors="replace", newline="") as stream:
         for row in csv.reader(stream, delimiter=";"):
-            if len(row) != 3:
+            if len(row) < 3:
                 raise ValueError("Expected three journal columns")
-            events.append(dict(time=row[0], event=row[1], detail=row[2]))
+            events.append(dict(time=row[0], event=row[1], detail=";".join(row[2:])))
+    return events
+
+
+def summarize(path):
+    events = read_events(path)
     metrics = {}
     seen = set()
     for event in events:

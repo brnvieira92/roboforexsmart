@@ -115,3 +115,8 @@ py tools\install_mt5.py "C:\caminho\exato\da\Pasta de Dados"
 ```
 
 Passe a pasta que contém MQL5, não Experts e não o checkout. Compile depois `MQL5/Experts/ForexSmart.mq5` com F7 e confira v2.02. Sem Python, copie manualmente EA e todos os seis includes da mesma revisão. Não se declara compilação MQL5 validada no ambiente Linux. Oito testes Python (incluindo backup/credenciais, pacote divergente, destino incorreto e referências antigas) e o harness nativo passaram nesta revisão.
+
+
+## v2.10
+
+A evolução opcional de planejamento técnico, as quatro perdas observadas sem deduplicação indevida, os testes executados e as pendências de desempenho estão em [TECHNICAL_PLANNER.md](TECHNICAL_PLANNER.md). A main não foi alterada.
