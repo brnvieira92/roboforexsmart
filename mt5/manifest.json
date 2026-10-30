@@ -1,9 +1,9 @@
 {
-  "version": "2.10",
+  "version": "2.11",
   "files": {
-    "ForexSmart.mq5": "1ce9a4c6602a76aaa5693ead88308b529fcd5f74fefe225bb8a6e1f71bfbd62a",
-    "Include/ForexSmartAccount.mqh": "4ebd69ee973fbd9a134a900ad24cb9dad43eaa5bbbab97a0fbd21494e70c50ac",
-    "Include/ForexSmartCore.mqh": "62eadf73c895eeeaffcc8300831b0f9b72cf321a74a5b36d29e0d9bdeb882cd7",
+    "ForexSmart.mq5": "570ffe95abbc17c0f400e7d8c4eea238af2f5cd4aa424c235d55ce6eef3582ef",
+    "Include/ForexSmartAccount.mqh": "2a19dc129a419d9374e0510e1638935bd54fee0fd1df2ef7a5bfa78430b0d5cf",
+    "Include/ForexSmartCore.mqh": "a1760785f5e6faab21fd6d7bb219d96eb81ef32d2f7f50ea0ade873954917604",
     "Include/ForexSmartPlanMath.mqh": "3528425b07d6e8748c68e15d4b8b25284a4e2a476b2f344a067f8309575d9a46",
     "Include/ForexSmartPlanner.mqh": "0d52b6e3f9b9b0c9a64f12d2d290b783e4a1265ce39acb5d00abcb1935c84d5c",
     "Include/ForexSmartRecovery.mqh": "832faee23782180b46503a61f23890d04e33b350c03b3e6d432fbbf9c608f7ec",

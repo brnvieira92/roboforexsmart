@@ -16,7 +16,7 @@ class InstallTests(unittest.TestCase):
             credentials.parent.mkdir()
             credentials.write_text('local-test-placeholder')
             version, count, backup = install(data)
-            self.assertEqual((version, count), ('2.10', 9))
+            self.assertEqual((version, count), ('2.11', 9))
             self.assertEqual((backup / 'ForexSmart.mq5').read_text(), 'old user file')
             self.assertEqual(credentials.read_text(), 'local-test-placeholder')
             for relative, content in verified_sources()[1].items():

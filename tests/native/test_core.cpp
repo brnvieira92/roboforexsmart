@@ -10,6 +10,11 @@ int main(){
  session.authorized=true;assert(ObserveAccount(session,101,1,2));assert(!session.authorized);
  session.authorized=true;assert(ObserveAccount(session,101,2,2));assert(!session.authorized);
  SessionState restarted{};assert(ObserveAccount(restarted,101,2,2));assert(!restarted.authorized);
+ // Journal failure must revoke a previously authorized session; retry cannot auto-rearm.
+ session.authorized=true;bool critical=false;
+ ApplyJournalResult(session,critical,false);assert(!session.authorized&&critical);
+ ApplyJournalResult(session,critical,true);assert(!session.authorized&&critical);
+ critical=false;ApplyJournalResult(session,critical,true);assert(!session.authorized&&!critical);
  assert(LegacyStop(.002)==.003);
  // Compare legacy math to the audited formulas over a deterministic grid.
  for(int i=1;i<=1000;i++){

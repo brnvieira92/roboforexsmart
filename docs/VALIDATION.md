@@ -120,3 +120,15 @@ Passe a pasta que contém MQL5, não Experts e não o checkout. Compile depois `
 ## v2.10
 
 A evolução opcional de planejamento técnico, as quatro perdas observadas sem deduplicação indevida, os testes executados e as pendências de desempenho estão em [TECHNICAL_PLANNER.md](TECHNICAL_PLANNER.md). A main não foi alterada.
+
+## v2.11 — falha de histórico e estado consistente da sessão
+
+A captura do usuário mostrou `Journal error: 5004` imediatamente após ativar. O erro MT5 indica impossibilidade de abrir o arquivo; um CSV aberto no Excel/editor com lock é uma possibilidade, mas permissões, caminho e condições do disco também precisam ser conferidos. Não se atribui causa específica sem observação do Windows.
+
+Havia um defeito de diagnóstico: ReportSession calculava “AUTORIZADA/máscara=0”, tentava gravar e então publicava o texto antigo mesmo se a gravação desarmasse a sessão. Agora o resultado do diário é explícito e o estado mostrado é calculado após a tentativa. Abrir, posicionar, gravar e flush são verificados separadamente; falha mantém o robô desarmado e reporta etapa/erro. Sucesso posterior não rearma automaticamente.
+
+Ativação manual agora exige uma gravação de teste, reconciliação e gravação da autorização antes de anunciá-la. A última rejeição é identificada como histórica; o aviso inicial de ativação é limpo ao autorizar com sucesso. Não houve mudança de estratégia, relaxamento do risco ou retirada da proteção de auditoria. Falha do CSV bloqueia novas entradas; não é instrução para liquidar posições existentes nem remover stops.
+
+Procedimento: feche o CSV no Excel/editores, use uma cópia para análise; confira o arquivo na Pasta de Dados correta e o acesso/disco. Clique Status para testar escrita e obter estado atual; depois reative manualmente na demo. Se repetir, enviar etapa/código e Experts. Não apagar histórico/globais ou aumentar limites para contornar.
+
+Testes locais: 12 testes Python, dois harnesses nativos, incluindo falha de diário revogando autorização e sucesso posterior sem rearmar. Compilação MQL5 e reprodução do lock Windows não foram executadas no Linux. Instalar com o mesmo script de hashes/backup e compilar v2.11 no MetaEditor.

@@ -1,5 +1,5 @@
 #property strict
-#property version "2.10"
+#property version "2.11"
 #property description "Forex Smart | smartTrade | Demo validation required"
 #include <Trade/Trade.mqh>
 #include "Include/ForexSmartTelegram.mqh"
@@ -89,11 +89,23 @@ void ReleaseLease(){if(leaseOwned&&lockKey!="")GlobalVariableSetOnCondition(lock
 void Notify(string text,string responsible="OPERATIONAL"){latest=text; Print(text); Alert(text); if(PushNotifications) SendNotification(text);TelegramQueue("Forex Smart | "+AccountKind()+" | "+ModeName()+" | "+responsible+"\nServidor: "+TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS)+"\n"+text);}
 string Key(ulong id){return StateKey("p."+(string)id);}
 double Value(int handle,int shift){double b[1]; if(CopyBuffer(handle,0,shift,1,b)!=1) return EMPTY_VALUE; return b[0];}
-void Journal(string type,string detail){
+void JournalFailure(int errorCode,string stage){
+ bool changed=journalLastError!=errorCode||journalFailureStage!=stage;
+ journalWritable=false;journalFailureLatched=true;journalLastError=errorCode;journalFailureStage=stage;
+ ApplyJournalResult(sessionState,criticalFailure,false);
+ latest="Histórico CSV indisponível: erro "+(string)errorCode+" ("+stage+"). Sessão DESARMADA; novas entradas bloqueadas.";
+ if(changed||journalLastNotice==0||GetTickCount64()-journalLastNotice>=60000){journalLastNotice=GetTickCount64();Print(latest);TelegramQueue("Forex Smart | "+AccountKind()+" | "+latest+" Feche o CSV no Excel/editores e confira acesso/disco. Depois Status e reativação manual.");}
+}
+bool Journal(string type,string detail){
+ ResetLastError();
  int f=FileOpen("ForexSmart-"+accountScope+"-history.csv",FILE_READ|FILE_WRITE|FILE_CSV|FILE_SHARE_READ|FILE_ANSI,';',CP_UTF8);
- if(f==INVALID_HANDLE){criticalFailure=true;sessionState.authorized=false;Print("Journal error: ",GetLastError());return;}
- FileSeek(f,0,SEEK_END); uint written=FileWrite(f,TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),type,detail); FileFlush(f);FileClose(f);
- if(written==0){criticalFailure=true;sessionState.authorized=false;Print("Forex Smart: falha ao escrever histórico; entradas desarmadas.");}
+ if(f==INVALID_HANDLE){JournalFailure(GetLastError(),"abrir");return false;}
+ if(!FileSeek(f,0,SEEK_END)){int errorCode=GetLastError();FileClose(f);JournalFailure(errorCode,"posicionar");return false;}
+ ResetLastError();uint written=FileWrite(f,TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),type,detail);int writeError=GetLastError();
+ if(written==0||writeError!=0){FileClose(f);JournalFailure(writeError,"gravar");return false;}
+ ResetLastError();FileFlush(f);int flushError=GetLastError();FileClose(f);
+ if(flushError!=0){JournalFailure(flushError,"flush");return false;}
+ journalWritable=true;ApplyJournalResult(sessionState,criticalFailure,true);return true;
 }
 bool Success(){uint r=trade.ResultRetcode();return r==TRADE_RETCODE_DONE||r==TRADE_RETCODE_DONE_PARTIAL;}
 void RefreshDay(){MqlDateTime d;TimeToStruct(TimeTradeServer(),d);int key=d.year*1000+d.day_of_year;
@@ -252,7 +264,7 @@ void OnTimer(){
  Comment("smartTrade | FOREX SMART | ",AccountKind()," | ",ModeName()," | Plan: ",EntryPlanner==TECHNICAL_PLAN?"TECHNICAL":"PREVIOUS","\nSessão: ",sessionState.authorized?"AUTORIZADA":"DESARMADA",emergencyStop?" | EMERGÊNCIA":"","\nModo: ",AutoTrade?"Automático":"Alertas",entriesPaused?" | PAUSADO":"",LossLimit()?" | Limite diário":"",
  "\nSaldo: ",DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE),2)," | Equity: ",DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY),2),
  "\nRisco %: ",RiskPercent," | Agregado estimado: ",DoubleToString(AggregateRisk(),2)," | Dia: ",DoubleToString(RelevantEquity()-dayEquity,2),
- "\nRegime: ",lastRegime," | Estratégia: ",lastStrategy," | Rejeição: ",lastReject,
+ "\nRegime: ",lastRegime," | Estratégia: ",lastStrategy," | Última rejeição: ",lastReject,
  "\nPosições da conta: ",PositionsTotal()," / 2 | Pares: ",ArraySize(symbols),
  "\nNegócios de saída positivos/negativos: ",wins," / ",losses," | Líquido histórico EA: ",DoubleToString(net,2),
  "\nServidor: ",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS)," | UTC: ",TimeToString(TimeGMT(),TIME_SECONDS),
@@ -262,7 +274,17 @@ void OnTimer(){
 void OnChartEvent(const int id,const long &l,const double &d,const string &s){if(id!=CHARTEVENT_OBJECT_CLICK)return;
  if(s=="FS.arm"){
  if(Identity()!=accountIdentity){sessionState.authorized=false;return;}
- if(AutoTrade&&Permissions()&&AccountKind()!="CONTEST"&&!emergencyStop){bool wasAuthorized=sessionState.authorized;criticalFailure=false;RecoverState();sessionState.authorized=!wasAuthorized&&!criticalFailure;Notify("Sessão "+AccountKind()+(sessionState.authorized?" autorizada":" desarmada"));}
+ if(sessionState.authorized){sessionState.authorized=false;Notify("Sessão "+AccountKind()+" desarmada");}
+ else if(AutoTrade&&Permissions()&&AccountKind()!="CONTEST"&&!emergencyStop){
+ // Do not announce authorization until persistence and reconciliation have passed.
+ if(Journal("session_activation_probe","Verificando gravação antes de autorizar "+AccountKind())){
+ criticalFailure=false;journalFailureLatched=false;RecoverState();
+ if(!criticalFailure&&journalWritable&&Identity()==accountIdentity&&OwnLease()){
+ sessionState.authorized=true;
+ if(Journal("session_activation",SessionDiagnostic())){if(lastReject=="Nova sessão: ativação manual obrigatória")lastReject="";Notify("Sessão "+AccountKind()+" autorizada");}
+ }
+ }
+ }
  else {Notify("Ativação não concluída: "+EntryBlockDetails(RuntimeEntryBlocks()));}
  ReportSession();
  }

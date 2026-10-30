@@ -3,6 +3,8 @@
 string accountScope="",accountIdentity="";
 SessionState sessionState;
 bool emergencyStop=false,criticalFailure=false;
+bool journalWritable=false,journalFailureLatched=false;
+int journalLastError=0;string journalFailureStage="";ulong journalLastNotice=0;
 string lastReject="",lastStrategy="LEGACY",lastRegime="NO_TRADE";
 double lastAggregateRisk=0;
 string AccountKind(){long m=AccountInfoInteger(ACCOUNT_TRADE_MODE);if(m==ACCOUNT_TRADE_MODE_DEMO)return "DEMO";if(m==ACCOUNT_TRADE_MODE_REAL)return "REAL";return "CONTEST";}
@@ -18,6 +20,7 @@ void ResetTelegramAccount(){ArrayResize(TgMessages,0);ArrayResize(TgAttempts,0);
 void SyncAccount(){ObserveAccount(sessionState,AccountInfoInteger(ACCOUNT_LOGIN),(long)ServerFingerprint(),(int)AccountInfoInteger(ACCOUNT_TRADE_MODE));string current=Identity();if(current==accountIdentity)return;
  activePlanID="";accountIdentity=current;accountScope=(string)AccountInfoInteger(ACCOUNT_LOGIN)+"."+ServerHash();
  sessionState.authorized=false;entriesPaused=false;emergencyStop=false;criticalFailure=false;dayKey=-1;dayEquity=0;lossNotified=false;
+ journalWritable=false;journalFailureLatched=false;journalLastError=0;journalFailureStage="";journalLastNotice=0;
  ResetTelegramAccount();lastReject="Nova sessão: ativação manual obrigatória";
  Print("Forex Smart: conta ",AccountKind()," identificada. Novas entradas desarmadas.");
 }
@@ -39,12 +42,18 @@ string EntryBlockDetails(int mask){
  if((mask&BLOCK_ACCOUNT)!=0)reason+="conta sem permissão de negociação (ACCOUNT_TRADE_ALLOWED=false); ";
  if((mask&BLOCK_EXPERT)!=0)reason+="conta sem permissão para robôs (ACCOUNT_TRADE_EXPERT=false); ";
  if((mask&BLOCK_CONTEST)!=0)reason+="conta CONTEST não autorizada; ";
- if((mask&BLOCK_CRITICAL)!=0)reason+="falha crítica interna: consulte Experts e CSV antes de reativar; ";
+ if((mask&BLOCK_CRITICAL)!=0){
+ if(journalFailureLatched)reason+="falha de histórico CSV (último erro="+(string)journalLastError+", etapa="+journalFailureStage+"); escrita agora="+(journalWritable?"disponível; reativação manual necessária":"indisponível; feche Excel/editores e confira acesso/disco")+"; ";
+ else reason+="falha crítica interna: consulte Experts e CSV antes de reativar; ";
+ }
  return mask==0?"nenhum bloqueio de sessão; custos e risco ainda precisam passar nas validações":reason;
 }
 bool EntrySession(){return RuntimeEntryBlocks()==0;}
 string SessionDiagnostic(){int mask=RuntimeEntryBlocks();return "Conta="+AccountKind()+" | Modo="+ModeName()+" | Sessão="+(sessionState.authorized?"AUTORIZADA":"DESARMADA")+" | máscara="+(string)mask+" | "+EntryBlockDetails(mask);}
-void ReportSession(){string report=SessionDiagnostic();Journal("session_status",report);Notify(report);}
+void ReportSession(){
+ // Journal can revoke authorization: always build the displayed status AFTER the write.
+ Journal("session_status",SessionDiagnostic());Notify(SessionDiagnostic());
+}
 
 double RelevantEquity(){
  double actual=AccountInfoDouble(ACCOUNT_EQUITY);

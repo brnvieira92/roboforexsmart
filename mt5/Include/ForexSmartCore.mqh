@@ -9,6 +9,10 @@ bool ObserveAccount(SessionState &state,long login,long server,int kind){
  if(changed){state.identified=true;state.login=login;state.server=server;state.kind=kind;state.authorized=false;}
  return changed;
 }
+void ApplyJournalResult(SessionState &state,bool &critical,bool success){
+ if(!success){state.authorized=false;critical=true;}
+ // A successful retry does not restore authorization or clear an unrelated critical fault.
+}
 double LegacyStop(double atr){return 1.5*atr;}
 double FSMin(double a,double b){return a<b?a:b;}
 double FSMax(double a,double b){return a>b?a:b;}
