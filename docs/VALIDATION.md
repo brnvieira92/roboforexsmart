@@ -132,3 +132,8 @@ Ativação manual agora exige uma gravação de teste, reconciliação e gravaç
 Procedimento: feche o CSV no Excel/editores, use uma cópia para análise; confira o arquivo na Pasta de Dados correta e o acesso/disco. Clique Status para testar escrita e obter estado atual; depois reative manualmente na demo. Se repetir, enviar etapa/código e Experts. Não apagar histórico/globais ou aumentar limites para contornar.
 
 Testes locais: 12 testes Python, dois harnesses nativos, incluindo falha de diário revogando autorização e sucesso posterior sem rearmar. Compilação MQL5 e reprodução do lock Windows não foram executadas no Linux. Instalar com o mesmo script de hashes/backup e compilar v2.11 no MetaEditor.
+
+
+## v2.12
+
+Veja [TP_AND_SNAPSHOTS.md](TP_AND_SNAPSHOTS.md) para a análise de 22 rejeições de 30/10, extensão opcional de alvo limitada por obstáculo, correção de exibição de TP e retenção de snapshots diagnósticos.

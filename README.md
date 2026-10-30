@@ -1,6 +1,6 @@
 # smartTrade — Forex Smart
 
-Versão da branch de desenvolvimento: **v2.11**. Novo planejamento técnico **opcional e ainda sem validação no MT5**, com rollback por `EntryPlanner=PREVIOUS_PLAN` (padrão). Leia primeiro [planejamento técnico, evidências, parâmetros e validação](docs/TECHNICAL_PLANNER.md).
+Versão da branch de desenvolvimento: **v2.12**. Novo planejamento técnico **opcional e ainda sem validação no MT5**, com rollback por `EntryPlanner=PREVIOUS_PLAN` (padrão). Leia primeiro [planejamento técnico, evidências, parâmetros e validação](docs/TECHNICAL_PLANNER.md).
 
 Atualização no Windows, dentro do projeto:
 
@@ -10,7 +10,7 @@ git pull --ff-only origin development/safe-multistrategy
 py tools\install_mt5.py "C:\caminho\da\Pasta de Dados do MT5"
 ```
 
-Desligue Algo Trading e aguarde ficar flat antes de instalar. O instalador copia EA + oito includes, confere hashes e faz backup; não compila nem habilita negociação. Depois, compile `MQL5/Experts/ForexSmart.mq5` com F7 e confira v2.11. Não foi executada compilação MQL5 nesta tarefa. Novos arquivos de plano são locais e não devem ser apagados com posições abertas.
+Desligue Algo Trading e aguarde ficar flat antes de instalar. O instalador copia EA + oito includes, confere hashes e faz backup; não compila nem habilita negociação. Depois, compile `MQL5/Experts/ForexSmart.mq5` com F7 e confira v2.12. Não foi executada compilação MQL5 nesta tarefa. Novos arquivos de plano são locais e não devem ser apagados com posições abertas.
 
 
 Primeira versão de Expert Advisor MQL5. **Não compilada nem validada em MT5 neste ambiente Linux. Não existe evidência de rentabilidade.** Inicia somente com alertas (`AutoTrade=false`).
@@ -129,3 +129,6 @@ g++ -std=c++17 -Wall -Wextra -Werror tests/native/test_core.cpp -o /tmp/forexsma
 ```
 
 Nenhum desses comandos envia ordens. C++ compila apenas as políticas matemáticas compartilhadas com o EA. Compilação completa, backtest, painel, APIs MT5, recuperação real do terminal e operação demo permanecem na matriz de validação pendente.
+
+
+Na v2.12, leia [extensão de TP e arquivos FSSignal](docs/TP_AND_SNAPSHOTS.md). Snapshots ficam desligados por padrão, com limite e limpeza opcional quando habilitados. A extensão de TP é opcional e nunca ignora o obstáculo técnico ou aumenta lote/risco.

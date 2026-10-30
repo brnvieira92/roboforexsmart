@@ -1,5 +1,5 @@
 #property strict
-#property version "2.11"
+#property version "2.12"
 #property description "Forex Smart | smartTrade | Demo validation required"
 #include <Trade/Trade.mqh>
 #include "Include/ForexSmartTelegram.mqh"
@@ -44,7 +44,11 @@ input bool AllowResearchWithoutCalendar=false;
 input int NewsMinutes=30;
 // Experimental planner: disabled until comparison against PREVIOUS_PLAN.
 input EntryPlannerSelection EntryPlanner=PREVIOUS_PLAN;
-input bool PlanSaveSignalSnapshots=true;
+input bool PlanSaveSignalSnapshots=false;
+input int PlanSnapshotMaxFiles=30;
+input bool PlanSnapshotPruneOldest=false;
+input bool PlanAllowTargetExtension=false;
+input double PlanExtendedTargetMaxR=4;
 input ENUM_TIMEFRAMES PlanEURTimeframe=PERIOD_M5;
 input ENUM_TIMEFRAMES PlanJPYTimeframe=PERIOD_M5;
 input ENUM_TIMEFRAMES PlanCHFTimeframe=PERIOD_M5;
@@ -180,7 +184,7 @@ void Scan(int i){
  MqlTick tick;if(!SymbolInfoTick(s,tick)||TimeCurrent()-tick.time>30)return;
  double point=SymbolInfoDouble(s,SYMBOL_POINT);int maxSpread=MaxSpreadPoints;if(StrategyMode==MULTISTRATEGY){ResearchConfig config=Config(s);maxSpread=MathMin(maxSpread,config.spread);}
  if((tick.ask-tick.bid)/point>maxSpread){Reject("Spread máximo: "+s);return;}
- string side=buy?"COMPRA":"VENDA";Notify("Oportunidade "+side+" "+s,lastStrategy);Journal("signal",side+" "+s);
+ string side=buy?"COMPRA":"VENDA";Notify("Sinal em avaliação "+side+" "+s,lastStrategy);Journal("signal",side+" "+s);
  SaveSignalSnapshot(i,buy,rates[0].close,stop,target);
  if(!SymbolInfoTick(s,tick)||TimeCurrent()-tick.time>30)return;
  double entry=buy?tick.ask:tick.bid,stopPrice=0,targetPrice=0,lot=0,expected=0;

@@ -48,6 +48,11 @@ double TechnicalStop(bool buy,double entryPrice,double bid,double ask,double str
  FSMax(structureBid+buffer+(ask-bid),FSMax(entryPrice+atrDistance,ask+minimumDistance));
  return buy?TickDown(raw,tickSize):TickUp(raw,tickSize);
 }
+// Return 0=skip, 1=write, 2=prune oldest then write. Never changes trade permission.
+int SnapshotCapacityAction(int existing,int maximum,bool allowPrune){if(maximum<1||existing<0)return 0;if(existing<maximum)return 1;return allowPrune?2:0;}
+double SignedTargetDistance(bool buy,double entryPrice,double targetPrice){return buy?targetPrice-entryPrice:entryPrice-targetPrice;}
+double ExtensionVolumeLimit(double originalLot,double recalculatedLot){return FSMin(originalLot,recalculatedLot);}
+bool TargetExtends(bool buy,double oldTarget,double candidate,double tickSize){return buy?candidate>oldTarget+tickSize*0.5:candidate<oldTarget-tickSize*0.5;}
 double TechnicalTarget(bool buy,double entryPrice,double spread,double obstacleBid,double clearance,double initialR,double maxTargetR,double tickSize){
  double raw=buy?FSMin(obstacleBid-clearance,entryPrice+initialR*maxTargetR):FSMax(obstacleBid+spread+clearance,entryPrice-initialR*maxTargetR);
  return buy?TickDown(raw,tickSize):TickUp(raw,tickSize);

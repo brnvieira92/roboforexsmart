@@ -49,6 +49,25 @@ int main(){
  assert(NetRewardRisk(5,24,0)<1); // no monetary target override
  assert(!ManagementProgress(.00055,.00078,1.5));assert(ManagementProgress(.00117,.00078,1.5));
  assert(!StopImproves(true,1.099,1.098,.00001));assert(!StopImproves(false,1.101,1.102,.00001));
+ // A farther target is possible only when the SAME obstacle already provides space.
+ double entry=1.1,sl=1.099,obstacle=1.106,clearance=.0002,tick=.00001;
+ double base=TechnicalTarget(true,entry,.0001,obstacle,clearance,entry-sl,3,tick);
+ double extended=TechnicalTarget(true,entry,.0001,obstacle,clearance,entry-sl,4,tick);
+ assert(TargetExtends(true,base,extended,tick));assert(TargetFits(true,entry,sl,extended,obstacle,.0001,clearance,tick));
+ assert(near(ExtensionVolumeLimit(.15,.16),.15));assert(near(ExtensionVolumeLimit(.15,.14),.14));
+ double nearObstacle=1.102;
+ assert(near(TechnicalTarget(true,entry,.0001,nearObstacle,clearance,entry-sl,3,tick),TechnicalTarget(true,entry,.0001,nearObstacle,clearance,entry-sl,4,tick)));
+ // Uploaded SELL snapshot: increasing R cap cannot cross nearby support 1.11990.
+ double blocked3=TechnicalTarget(false,1.11994,.00010,1.11990,.00020,.00090,3,.00001);
+ double blocked4=TechnicalTarget(false,1.11994,.00010,1.11990,.00020,.00090,4,.00001);
+ assert(near(blocked3,1.12020));assert(near(blocked3,blocked4));
+ assert(SignedTargetDistance(false,1.11994,blocked4)<0);
+ assert(!TargetFits(false,1.11994,1.12084,blocked4,1.11990,.00010,.00020,.00001));
+ assert(SnapshotCapacityAction(29,30,false)==1);
+ assert(SnapshotCapacityAction(30,30,false)==0);
+ assert(SnapshotCapacityAction(30,30,true)==2);
+ assert(SnapshotCapacityAction(50,30,false)==0);
+ assert(SnapshotCapacityAction(0,0,true)==0);
  // Additional stop width changes volume, not the authorized monetary budget.
  for(int pips=5;pips<=40;pips++){
  double loss=100000*pips*.0001;double volume=CostedVolume(25,loss,7,.01,100);
