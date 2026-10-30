@@ -2,6 +2,7 @@
 #define FOREX_SMART_ACCOUNT
 string accountScope="",accountIdentity="";
 SessionState sessionState;
+long authorizationGeneration=0;
 bool emergencyStop=false,criticalFailure=false;
 bool journalWritable=false,journalFailureLatched=false;
 int journalLastError=0;string journalFailureStage="";ulong journalLastNotice=0;
@@ -18,7 +19,7 @@ string ModeName(){return StrategyMode==LEGACY?"LEGACY":"MULTISTRATEGY";}
 void ResetTelegramAccount(){ArrayResize(TgMessages,0);ArrayResize(TgAttempts,0);ArrayResize(TgCreated,0);}
 // Returns true only after identity has been refreshed. Always starts disarmed.
 void SyncAccount(){ObserveAccount(sessionState,AccountInfoInteger(ACCOUNT_LOGIN),(long)ServerFingerprint(),(int)AccountInfoInteger(ACCOUNT_TRADE_MODE));string current=Identity();if(current==accountIdentity)return;
- activePlanID="";accountIdentity=current;accountScope=(string)AccountInfoInteger(ACCOUNT_LOGIN)+"."+ServerHash();
+ authorizationGeneration++;ResetSpaceRechecks();activePlanID="";accountIdentity=current;accountScope=(string)AccountInfoInteger(ACCOUNT_LOGIN)+"."+ServerHash();
  sessionState.authorized=false;entriesPaused=false;emergencyStop=false;criticalFailure=false;dayKey=-1;dayEquity=0;lossNotified=false;
  journalWritable=false;journalFailureLatched=false;journalLastError=0;journalFailureStage="";journalLastNotice=0;
  ResetTelegramAccount();lastReject="Nova sessão: ativação manual obrigatória";

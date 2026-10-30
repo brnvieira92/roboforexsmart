@@ -68,6 +68,36 @@ int main(){
  assert(SnapshotCapacityAction(30,30,true)==2);
  assert(SnapshotCapacityAction(50,30,false)==0);
  assert(SnapshotCapacityAction(0,0,true)==0);
+ {
+ double rh[]={1.2,1.2,1.2,1.2,1.2,1.2,1.2,1.2,1.2};
+ double rl[]={1.1,1.002,1.004,1.005,1.1,1.1,1.0,1.1,1.1};
+ double rc[]={1.1,1.1,1.1,1.1,1.1,1.1,1.1,1.1,1.1};int span=0;
+ assert(PivotTouches(rh,rl,9,6,2,false,1.0,.01,2,span)==3&&span==5);
+ assert(!PivotBroken(rc,9,6,2,false,1.0,.01,2)); // wicks/touches are not confirmed breaks
+ rc[3]=.98;rc[2]=.98;assert(PivotBroken(rc,9,6,2,false,1.0,.01,2));
+ assert(!PivotBroken(rc,9,6,2,true,1.2,.01,2));
+ rc[3]=1.22;rc[2]=1.22;assert(PivotBroken(rc,9,6,2,true,1.2,.01,2));
+ double mh[]={1.6,1.7,2.0,1.7,1.6},ml[]={1.2,1.2,1.2,1.2,1.2};
+ assert(ConfluencePivotIndex(mh,ml,5,2,2,true,2.003,.01)==2);
+ assert(ConfluencePivotIndex(mh,ml,5,2,2,true,2.03,.01)==-1);
+ double supportM15[]={1.4,1.3,1.1,1.3,1.4};
+ assert(ConfluencePivotIndex(mh,supportM15,5,2,2,false,1.103,.01)==2);
+ assert(ObstacleQualified(ALL_CONFIRMED_PIVOTS,1,0,2,3,false,true)); // compatibility baseline
+ assert(!ObstacleQualified(RETESTED_OR_M15,1,0,2,3,false,false));
+ assert(ObstacleQualified(RETESTED_OR_M15,3,5,2,3,false,false));
+ assert(!ObstacleQualified(M15_CONFIRMED_ONLY,3,5,2,3,false,false));
+ assert(ObstacleQualified(M15_CONFIRMED_ONLY,1,0,2,3,true,false));
+ assert(!ObstacleQualified(RETESTED_OR_M15,3,5,2,3,true,true));
+ }
+ assert(RetryDecision(true,true,true,true,true,false,0,3,5,5,10,60)==1);
+ assert(RetryDecision(true,true,true,true,true,false,0,3,10,10,10,60)==2);
+ assert(RetryDecision(true,true,true,true,true,false,3,3,30,10,10,60)==0);
+ assert(RetryDecision(true,true,true,true,true,false,0,3,60,10,10,60)==0);
+ // Every independent loss of validity must cancel, even before a retry becomes due.
+ for(int flag=0;flag<6;flag++){
+ bool flags[]={true,true,true,true,true,false};flags[flag]=!flags[flag];
+ assert(RetryDecision(flags[0],flags[1],flags[2],flags[3],flags[4],flags[5],0,3,10,10,10,60)==0);
+ }
  // Additional stop width changes volume, not the authorized monetary budget.
  for(int pips=5;pips<=40;pips++){
  double loss=100000*pips*.0001;double volume=CostedVolume(25,loss,7,.01,100);

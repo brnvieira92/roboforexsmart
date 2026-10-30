@@ -137,3 +137,8 @@ Testes locais: 12 testes Python, dois harnesses nativos, incluindo falha de diá
 ## v2.12
 
 Veja [TP_AND_SNAPSHOTS.md](TP_AND_SNAPSHOTS.md) para a análise de 22 rejeições de 30/10, extensão opcional de alvo limitada por obstáculo, correção de exibição de TP e retenção de snapshots diagnósticos.
+
+
+## v2.13
+
+Veja [OBSTACLES_AND_RECHECK.md](OBSTACLES_AND_RECHECK.md) para relevância M5/M15, retestes, rompimento por fechamentos e verificações adicionais limitadas sem reenvio de ordens. Compilação e testes de execução MT5 seguem pendentes.

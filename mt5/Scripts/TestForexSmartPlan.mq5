@@ -15,5 +15,11 @@ void OnStart(){
  Check(MathAbs(stop-1.10132)<1e-9,"Sell Bid to Ask once");
  Check(!StopWithinLimit(.00132,12,.0001,.00001),"Reject wide stop, never clamp");
  Check(NetRewardRisk(300,150,7)<2,"Costs reduce RR");
+ Check(RetryDecision(true,true,true,true,true,false,0,3,10,10,10,60)==2,"Recheck due");
+ Check(RetryDecision(true,true,true,true,true,true,0,3,10,10,10,60)==0,"No retry after dispatch");
+ Check(RetryDecision(true,true,true,true,true,false,0,3,60,10,10,60)==0,"TTL expiry");
+ Check(!ObstacleQualified(M15_CONFIRMED_ONLY,3,5,2,3,false,false),"Local retest is not M15 proof");
+ Check(ObstacleQualified(M15_CONFIRMED_ONLY,1,0,2,3,true,false),"M15 confluence");
+ Check(!ObstacleQualified(RETESTED_OR_M15,3,5,2,3,true,true),"Confirmed broken pivot excluded in experimental policy");
  Print(failures==0?"Forex Smart plan simulations: PASS":"Forex Smart plan simulations: FAIL");
 }

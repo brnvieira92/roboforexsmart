@@ -1,5 +1,5 @@
 #property strict
-#property version "2.12"
+#property version "2.13"
 #property description "Forex Smart | smartTrade | Demo validation required"
 #include <Trade/Trade.mqh>
 #include "Include/ForexSmartTelegram.mqh"
@@ -49,6 +49,12 @@ input int PlanSnapshotMaxFiles=30;
 input bool PlanSnapshotPruneOldest=false;
 input bool PlanAllowTargetExtension=false;
 input double PlanExtendedTargetMaxR=4;
+input ObstacleSelectionPolicy PlanObstacleSelection=ALL_CONFIRMED_PIVOTS;
+input int PlanObstacleMinTouches=2,PlanObstacleMinSpanBars=3,PlanObstacleTouchSeparation=2;
+input double PlanObstacleTolerancePips=1;
+input int PlanObstacleBreakCloses=2,PlanObstacleM15Lookback=60;
+input bool PlanEnableSpaceRecheck=false;
+input int PlanRecheckIntervalSeconds=10,PlanRecheckLifetimeSeconds=60,PlanRecheckMaxAttempts=3;
 input ENUM_TIMEFRAMES PlanEURTimeframe=PERIOD_M5;
 input ENUM_TIMEFRAMES PlanJPYTimeframe=PERIOD_M5;
 input ENUM_TIMEFRAMES PlanCHFTimeframe=PERIOD_M5;
@@ -75,6 +81,8 @@ bool entriesPaused=false;
 bool lossNotified=false;
 string latest="Inicializando";
 string activePlanID="";
+void ResetSpaceRechecks();
+void AttemptSignalEntry(int i,bool buy,datetime bar,double signalClose,double stop,double target,bool retrying);
 #include "Include/ForexSmartAccount.mqh"
 #include "Include/ForexSmartResearch.mqh"
 #include "Include/ForexSmartRisk.mqh"
@@ -94,7 +102,7 @@ void Notify(string text,string responsible="OPERATIONAL"){latest=text; Print(tex
 string Key(ulong id){return StateKey("p."+(string)id);}
 double Value(int handle,int shift){double b[1]; if(CopyBuffer(handle,0,shift,1,b)!=1) return EMPTY_VALUE; return b[0];}
 void JournalFailure(int errorCode,string stage){
- bool changed=journalLastError!=errorCode||journalFailureStage!=stage;
+ authorizationGeneration++;bool changed=journalLastError!=errorCode||journalFailureStage!=stage;
  journalWritable=false;journalFailureLatched=true;journalLastError=errorCode;journalFailureStage=stage;
  ApplyJournalResult(sessionState,criticalFailure,false);
  latest="Histórico CSV indisponível: erro "+(string)errorCode+" ("+stage+"). Sessão DESARMADA; novas entradas bloqueadas.";
@@ -120,6 +128,7 @@ double Price(string s,double p){double tick=SymbolInfoDouble(s,SYMBOL_TRADE_TICK
 double Volume(string s,double v){double step=SymbolInfoDouble(s,SYMBOL_VOLUME_STEP);return NormalizeDouble(FloorVolume(v,step,SymbolInfoDouble(s,SYMBOL_VOLUME_MAX)),8);}
 #include "Include/ForexSmartPlanner.mqh"
 #include "Include/ForexSmartRecovery.mqh"
+#include "Include/ForexSmartRecheck.mqh"
 void Manage(){
  if(!Permissions()||Identity()!=accountIdentity)return; // Existing server SL/TP remain in place when terminal cannot trade.
  for(int p=PositionsTotal()-1;p>=0;p--){ulong ticket=PositionGetTicket(p);if(ticket==0||!OwnedPosition(ticket))continue;
@@ -170,29 +179,20 @@ void Manage(){
  }
  }
 }
-void Scan(int i){
- activePlanID="";
- string s=symbols[i];bool configured=false;for(int j=0;j<ArraySize(entrySymbols);j++)if(s==entrySymbols[j])configured=true;if(!configured)return;datetime bar=iTime(s,PERIOD_M5,0);if(bar==0||bar==lastbar[i])return;
- double f=Value(fastHandles[i],1),sl=Value(slowHandles[i],1),a=Value(atrHandles[i],1);if(f==EMPTY_VALUE||sl==EMPTY_VALUE||a==EMPTY_VALUE||a<=0)return;
- MqlRates rates[];ArraySetAsSeries(rates,true);if(CopyRates(s,PERIOD_M5,1,3,rates)!=3)return;
- lastbar[i]=bar;GlobalVariableSet(BarKey(s),bar);
- lastStrategy="LEGACY";lastRegime="LEGACY";
- int direction=LegacyDirection(f,sl,rates[1].close,rates[0].close);
- double stop=LegacyStop(a),target=LegacyTarget(a,SymbolInfoDouble(s,SYMBOL_POINT),f,sl,MinTPPoints,MaxTPPoints);
- if(StrategyMode==MULTISTRATEGY)direction=ResearchSignal(i,a,stop,target);
- bool buy=direction>0;if(direction==0)return;
- MqlTick tick;if(!SymbolInfoTick(s,tick)||TimeCurrent()-tick.time>30)return;
- double point=SymbolInfoDouble(s,SYMBOL_POINT);int maxSpread=MaxSpreadPoints;if(StrategyMode==MULTISTRATEGY){ResearchConfig config=Config(s);maxSpread=MathMin(maxSpread,config.spread);}
- if((tick.ask-tick.bid)/point>maxSpread){Reject("Spread máximo: "+s);return;}
- string side=buy?"COMPRA":"VENDA";Notify("Sinal em avaliação "+side+" "+s,lastStrategy);Journal("signal",side+" "+s);
- SaveSignalSnapshot(i,buy,rates[0].close,stop,target);
+void AttemptSignalEntry(int i,bool buy,datetime bar,double signalClose,double stop,double target,bool retrying){
+ activePlanID="";lastPlanSpaceRecheck=false;string s=symbols[i];MqlTick tick;
+ if(AlreadyDispatched(s,bar)){CancelSpaceRecheck(i,"signal already dispatched");Journal("dispatch_suppressed","symbol="+s+" | bar="+(string)(long)bar+" | already_dispatched=1");return;}
+ if(!SymbolInfoTick(s,tick)||TimeCurrent()-tick.time>30)return;
+ double point=SymbolInfoDouble(s,SYMBOL_POINT);int limit=MaxSpreadPoints;
+ if(StrategyMode==MULTISTRATEGY){ResearchConfig cfig=Config(s);limit=MathMin(limit,cfig.spread);}
+ if(point<=0||(tick.ask-tick.bid)/point>limit){Reject("Spread máximo na reavaliação/envio: "+s);return;}
  if(!SymbolInfoTick(s,tick)||TimeCurrent()-tick.time>30)return;
  double entry=buy?tick.ask:tick.bid,stopPrice=0,targetPrice=0,lot=0,expected=0;
  TechnicalPlan technical;bool technicalMode=EntryPlanner==TECHNICAL_PLAN;
  if(technicalMode){
- if(!PrepareTechnicalPlan(i,buy,rates[0].close,stop,target,technical)){activePlanID="";return;}
+ if(!PrepareTechnicalPlan(i,buy,signalClose,stop,target,technical)){if(!retrying)ScheduleSpaceRecheck(i,buy,bar,technical.sl);activePlanID="";return;}
  // Refresh quote, levels, costs, lot and margin again immediately before dispatch.
- if(!PrepareTechnicalPlan(i,buy,rates[0].close,stop,target,technical)){activePlanID="";return;}
+ if(!PrepareTechnicalPlan(i,buy,signalClose,stop,target,technical)){if(!retrying)ScheduleSpaceRecheck(i,buy,bar,technical.sl);activePlanID="";return;}
  entry=technical.entry;stopPrice=technical.sl;targetPrice=technical.tp;lot=technical.lot;expected=technical.risk;
  }else{
  stop=MathMax(stop,(SymbolInfoInteger(s,SYMBOL_TRADE_STOPS_LEVEL)+2)*point);
@@ -202,10 +202,19 @@ void Scan(int i){
  if(Identity()!=accountIdentity||!OwnLease()||!EntrySession()){Reject("Sessão alterada antes do envio");activePlanID="";return;}
  if(technicalMode){MqlTick finalTick;
  if(iTime(s,PERIOD_M5,0)!=bar||!SymbolInfoTick(s,finalTick)||TimeCurrent()-finalTick.time>30||TimeTradeServer()-technical.created>5||MathAbs((buy?finalTick.ask:finalTick.bid)-entry)>SlippageReservePoints*point+1e-12||finalTick.ask-finalTick.bid>technical.quoteAsk-technical.quoteBid+1e-12){Reject("Cotação/candle mudou antes do envio; plano descartado sem ordem");activePlanID="";return;}}
+ if(retrying){
+ if(i>=ArraySize(spaceRechecks)||!spaceRechecks[i].active||spaceRechecks[i].generation!=authorizationGeneration||spaceRechecks[i].identity!=Identity()||TimeTradeServer()-spaceRechecks[i].born>=PlanRecheckLifetimeSeconds){CancelSpaceRecheck(i,"retry expired during planning");activePlanID="";return;}
+ MqlTick recheckTick;if(!SymbolInfoTick(s,recheckTick)||(buy?recheckTick.bid<=spaceRechecks[i].invalidationSL:recheckTick.ask>=spaceRechecks[i].invalidationSL)){CancelSpaceRecheck(i,"original invalidation reached during planning");activePlanID="";return;}
+ }
  if(technicalMode&&!SaveTechnicalPlan(PendingPlanPath(s),technical)){PlanCritical("Plano pré-envio não pôde ser persistido; nenhuma ordem enviada");activePlanID="";return;}
  trade.SetTypeFillingBySymbol(s);
  string comment=StrategyMode==LEGACY?"Forex Smart":"FS2:"+lastStrategy;
  if(technicalMode)comment=TechnicalOrderComment(technical);
+ // A dispatch is never retried, including rejected/ambiguous broker responses.
+ if(AlreadyDispatched(s,bar)){CancelSpaceRecheck(i,"signal already dispatched");activePlanID="";return;}
+ if(GlobalVariableSet(DispatchKey(s),(double)bar)==0){PlanCritical("Falha persistindo bloqueio de duplicidade; ordem não enviada");activePlanID="";return;}
+ GlobalVariablesFlush();CancelSpaceRecheck(i,"order dispatch committed");lastPlanSpaceRecheck=false;
+ if(Identity()!=accountIdentity||!EntrySession()||!OwnLease()){activePlanID="";return;}
  bool ok=trade.PositionOpen(s,buy?ORDER_TYPE_BUY:ORDER_TYPE_SELL,lot,entry,stopPrice,targetPrice,comment);
  if(technicalMode){technical.order=trade.ResultOrder();if(!SaveTechnicalPlan(PendingPlanPath(s),technical))PlanCritical("Falha persistindo identificador da ordem enviada");}
  if(trade.ResultRetcode()==TRADE_RETCODE_PLACED){criticalFailure=true;sessionState.authorized=false;Journal("critical","Order accepted but not yet filled: reconcile before reactivation");}
@@ -220,6 +229,23 @@ void Scan(int i){
  }
  activePlanID="";
 }
+void Scan(int i){
+ activePlanID="";string s=symbols[i];bool configured=false;
+ for(int j=0;j<ArraySize(entrySymbols);j++)if(s==entrySymbols[j])configured=true;if(!configured)return;
+ datetime bar=iTime(s,PERIOD_M5,0);if(bar==0||bar==lastbar[i])return;
+ int direction=0;double signalClose=0,stop=0,target=0;
+ if(!ReadSignalForEntry(i,direction,signalClose,stop,target))return;
+ lastbar[i]=bar;GlobalVariableSet(BarKey(s),bar);if(direction==0)return;
+ bool buy=direction>0;string side=buy?"COMPRA":"VENDA";
+ MqlTick initialTick;if(!SymbolInfoTick(s,initialTick)||TimeCurrent()-initialTick.time>30)return;
+ double point=SymbolInfoDouble(s,SYMBOL_POINT);int spreadLimit=MaxSpreadPoints;
+ if(StrategyMode==MULTISTRATEGY){ResearchConfig cfg=Config(s);spreadLimit=MathMin(spreadLimit,cfg.spread);}
+ if(point<=0||(initialTick.ask-initialTick.bid)/point>spreadLimit){Reject("Spread máximo: "+s);return;}
+ Notify("Sinal em avaliação "+side+" "+s,lastStrategy);Journal("signal",side+" "+s);
+ SaveSignalSnapshot(i,buy,signalClose,stop,target);
+ AttemptSignalEntry(i,buy,bar,signalClose,stop,target,false);
+}
+
 void Button(string name,string text,int x){ObjectCreate(0,name,OBJ_BUTTON,0,0,0);ObjectSetInteger(0,name,OBJPROP_XDISTANCE,x);ObjectSetInteger(0,name,OBJPROP_YDISTANCE,25);ObjectSetInteger(0,name,OBJPROP_XSIZE,130);ObjectSetString(0,name,OBJPROP_TEXT,text);ObjectSetInteger(0,name,OBJPROP_BGCOLOR,clrDarkGreen);ObjectSetInteger(0,name,OBJPROP_COLOR,clrWhite);}
 int OnInit(){
  if(!PlanSettingsValid())return INIT_PARAMETERS_INCORRECT;
@@ -259,9 +285,9 @@ void Metrics(int &wins,int &losses,double &net){
 void OnTimer(){
  if(Identity()!=accountIdentity){ReleaseLease();SyncAccount();if(!AcquireLease()){criticalFailure=true;return;}RecoverState();}
  if(!OwnLease()){criticalFailure=true;Comment("Forex Smart: lease perdida. Reanexe uma única instância; novas entradas desarmadas.");return;}
- if(!TerminalInfoInteger(TERMINAL_CONNECTED))sessionState.authorized=false;
+ if(!TerminalInfoInteger(TERMINAL_CONNECTED)){if(sessionState.authorized)authorizationGeneration++;sessionState.authorized=false;}
  RefreshDay();
- if(LossLimit()&&!lossNotified){lossNotified=true;Notify("Limite diário atingido: novas entradas bloqueadas; gestão continua.");}Manage();for(int i=0;i<ArraySize(symbols);i++)Scan(i);
+ if(LossLimit()&&!lossNotified){lossNotified=true;Notify("Limite diário atingido: novas entradas bloqueadas; gestão continua.");}Manage();ProcessSpaceRechecks();for(int i=0;i<ArraySize(symbols);i++)Scan(i);
  ObjectSetString(0,"FS.arm",OBJPROP_TEXT,(sessionState.authorized?"DESARMAR ":"ATIVAR ")+AccountKind());
  ObjectSetInteger(0,"FS.arm",OBJPROP_BGCOLOR,sessionState.authorized&&AccountKind()=="REAL"?clrRed:clrDarkGreen);
  int wins,losses;double net;Metrics(wins,losses,net);
@@ -277,6 +303,7 @@ void OnTimer(){
  TelegramPump();}
 void OnChartEvent(const int id,const long &l,const double &d,const string &s){if(id!=CHARTEVENT_OBJECT_CLICK)return;
  if(s=="FS.arm"){
+ authorizationGeneration++;
  if(Identity()!=accountIdentity){sessionState.authorized=false;return;}
  if(sessionState.authorized){sessionState.authorized=false;Notify("Sessão "+AccountKind()+" desarmada");}
  else if(AutoTrade&&Permissions()&&AccountKind()!="CONTEST"&&!emergencyStop){
@@ -292,8 +319,8 @@ void OnChartEvent(const int id,const long &l,const double &d,const string &s){if
  else {Notify("Ativação não concluída: "+EntryBlockDetails(RuntimeEntryBlocks()));}
  ReportSession();
  }
- if(s=="FS.emergency"){emergencyStop=!emergencyStop;sessionState.authorized=false;Notify("Emergência: "+(emergencyStop?"novas entradas bloqueadas; stops mantidos":"desativada; reative manualmente"));}
- if(s=="FS.pause"){entriesPaused=!entriesPaused;ObjectSetString(0,s,OBJPROP_TEXT,entriesPaused?"Retomar entradas":"Pausar entradas");}
+ if(s=="FS.emergency"){authorizationGeneration++;emergencyStop=!emergencyStop;sessionState.authorized=false;Notify("Emergência: "+(emergencyStop?"novas entradas bloqueadas; stops mantidos":"desativada; reative manualmente"));}
+ if(s=="FS.pause"){authorizationGeneration++;entriesPaused=!entriesPaused;ObjectSetString(0,s,OBJPROP_TEXT,entriesPaused?"Retomar entradas":"Pausar entradas");}
  if(s=="FS.status")ReportSession();ObjectSetInteger(0,s,OBJPROP_STATE,false);}
 void OnTradeTransaction(const MqlTradeTransaction &trans,const MqlTradeRequest &req,const MqlTradeResult &res){
  if(Identity()!=accountIdentity)return;

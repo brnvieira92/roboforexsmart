@@ -43,6 +43,38 @@ int FindObstacle(FS_PLAN_ARRAY(h),FS_PLAN_ARRAY(l),int count,int left,int right,
  if(!buy&&l[i]<entryPrice&&ConfirmedPivot(l,count,i,left,right,false)&&(best<0||l[i]>l[best]))best=i;
  }return best;
 }
+enum ObstacleSelectionPolicy { ALL_CONFIRMED_PIVOTS=0, RETESTED_OR_M15=1, M15_CONFIRMED_ONLY=2 };
+// Count separated touches AFTER a pivot, excluding the candles that confirmed it.
+int PivotTouches(FS_PLAN_ARRAY(h),FS_PLAN_ARRAY(l),int count,int pivot,int right,bool highLevel,double level,double tolerance,int separation,int &span){
+ if(pivot<0||pivot>=count||right<1||separation<1){span=0;return 0;}
+ int touches=1,last=pivot,newest=pivot;
+ for(int j=pivot-right-1;j>=0;j--){double price=highLevel?h[j]:l[j];
+ if(last-j>=separation&&FSAbs(price-level)<=tolerance){touches++;last=j;newest=j;}}
+ span=pivot-newest;return touches;
+}
+bool PivotBroken(FS_PLAN_ARRAY(c),int count,int pivot,int right,bool highLevel,double level,double tolerance,int confirmations){
+ if(confirmations<1||pivot<right||pivot>=count)return false;
+ int run=0;
+ for(int j=pivot-right-1;j>=0;j--){bool beyond=highLevel?c[j]>level+tolerance:c[j]<level-tolerance;
+ run=beyond?run+1:0;if(run>=confirmations)return true;}return false;
+}
+int ConfluencePivotIndex(FS_PLAN_ARRAY(h),FS_PLAN_ARRAY(l),int count,int left,int right,bool highLevel,double level,double tolerance){
+ for(int i=right;i<count-left;i++){
+ if(highLevel&&ConfirmedPivot(h,count,i,left,right,true)&&FSAbs(h[i]-level)<=tolerance)return i;
+ if(!highLevel&&ConfirmedPivot(l,count,i,left,right,false)&&FSAbs(l[i]-level)<=tolerance)return i;
+ }return -1;
+}
+bool ObstacleQualified(int policy,int touches,int span,int minimumTouches,int minimumSpan,bool m15,bool broken){
+ if(policy==ALL_CONFIRMED_PIVOTS)return true;
+ if(broken)return false;
+ if(policy==M15_CONFIRMED_ONLY)return m15;
+ return m15||(touches>=minimumTouches&&span>=minimumSpan);
+}
+// State-machine decision: 0=cancel, 1=wait, 2=recheck. Time units are seconds.
+int RetryDecision(bool sameAccount,bool sameSession,bool permitted,bool sameBar,bool sameSignal,bool dispatched,int attempts,int maximum,long age,long delayElapsed,int interval,int lifetime){
+ if(!sameAccount||!sameSession||!permitted||!sameBar||!sameSignal||dispatched||attempts>=maximum||age<0||age>=lifetime)return 0;
+ return delayElapsed>=interval?2:1;
+}
 double TechnicalStop(bool buy,double entryPrice,double bid,double ask,double structureBid,double buffer,double atrDistance,double minimumDistance,double tickSize){
  double raw=buy?FSMin(structureBid-buffer,FSMin(entryPrice-atrDistance,bid-minimumDistance)):
  FSMax(structureBid+buffer+(ask-bid),FSMax(entryPrice+atrDistance,ask+minimumDistance));
