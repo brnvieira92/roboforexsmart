@@ -160,3 +160,14 @@ g++ -std=c++17 -Wall -Wextra -Werror tests/native/test_opportunity.cpp -o /tmp/f
 A auditoria do diário e a geometria dos oito stops são análise dos valores registrados. Não há ticks posteriores para executar backtest econômico ou medir operações lucrativas recuperadas. Esse resultado permanece não medido.
 
 Resultados locais obtidos nesta entrega: **16 testes Python passaram**, incluindo associação de rechecks intercalados por símbolo e deduplicação de duas aprovações da mesma intenção. **Três harnesses C++ passaram** com `-Wall -Wextra -Werror`; compilam as próprias funções de política compartilhadas. Casos novos incluem spread aumentado ainda dentro dos limites, preço/spread/idade fora da tolerância, geometria23.1pips vs ATR/teto, redução de lote, dois fechamentos vs wick, contagem interrompida, reteste/rompimento falhado, pullback com/sem toque, expiração e tratamento OHLC ambíguo/stop-first. Integridade do pacote de12 fontes e instalação/backup também passaram. Isso não exercita a API MQL5, o disco do Windows, chamadas ao servidor nem transações reais.
+
+
+## v2.15
+
+[Modo monetário, regras, testes e rollback](FIXED_CASH_TARGET.md).16 testes Python e quatro harnesses C++ passaram; o cabeçalho novo é exercitado diretamente com adaptadores de lucro/grade, sem abrir posições.
+
+```bash
+g++ -std=c++17 -Wall -Wextra -Werror tests/native/test_cash_target.cpp -o /tmp/fs-cash && /tmp/fs-cash
+```
+
+Nenhuma compilação completa MQL, backtest ou operação demo/real foi realizada. O objetivo5USD é líquido estimado, sujeito ao tick e à execução, não garantia de lucro.

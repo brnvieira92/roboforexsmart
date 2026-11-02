@@ -22,7 +22,7 @@ bool ExposureAllowed(string s,int direction){int sign=USDExposure(s,direction),c
  for(int i=0;i<PositionsTotal();i++){if(PositionGetTicket(i)==0)continue;if(USDExposure(PositionGetString(POSITION_SYMBOL),PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY?1:-1)==sign)count++;}
  return count<MaxSameUSDPositions;
 }
-bool NewOrderPlan(string s,bool buy,double entry,double sl,double target,double &lot,double &expected){
+bool NewOrderPlan(string s,bool buy,double entry,double sl,double target,double &lot,double &expected,double budgetCap=0){
  int sessionBlocks=RuntimeEntryBlocks();
  if(sessionBlocks!=0){Reject("Sessão: "+EntryBlockDetails(sessionBlocks));return false;}
  if(LossLimit()){Reject("Limite diário");return false;}
@@ -42,7 +42,7 @@ bool NewOrderPlan(string s,bool buy,double entry,double sl,double target,double 
  double spreadCash=0;if(!OrderCalcProfit(buy?ORDER_TYPE_BUY:ORDER_TYPE_SELL,s,1,entry,entry+(buy?-spread:spread),spreadCash)){Reject("Falha ao converter spread para moeda da conta");return false;}
  double ratioLimit=MaxCostRiskRatio;if(StrategyMode==MULTISTRATEGY){ResearchConfig config=Config(s);ratioLimit=MathMin(ratioLimit,config.maxCost);}
  if((cost+MathAbs(spreadCash))/MathAbs(loss)>ratioLimit){Reject("Custo/risco excessivo");return false;}
- double perLot=MathAbs(loss)+cost,budget=RiskBudget(RelevantEquity(),RiskPercent);
+ double perLot=MathAbs(loss)+cost,budget=RiskBudget(RelevantEquity(),RiskPercent);if(budgetCap>0)budget=MathMin(budget,budgetCap);
  lot=EntryPlanner==TECHNICAL_PLAN?NormalizeDouble(CostedVolume(budget,MathAbs(loss),cost,SymbolInfoDouble(s,SYMBOL_VOLUME_STEP),SymbolInfoDouble(s,SYMBOL_VOLUME_MAX)),8):Volume(s,MathMin(SymbolInfoDouble(s,SYMBOL_VOLUME_MAX),budget/perLot));expected=lot*perLot;
  if(lot<SymbolInfoDouble(s,SYMBOL_VOLUME_MIN)||lot<=0||expected>budget+1e-8){Reject("Lote mínimo excede risco");return false;}
  lastAggregateRisk=AggregateRisk();if(lastAggregateRisk+expected>RiskBudget(RelevantEquity(),MaxAggregateRiskPercent)){Reject("Risco agregado");return false;}

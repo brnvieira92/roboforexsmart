@@ -1,5 +1,5 @@
 #property strict
-#property version "2.14"
+#property version "2.15"
 #property description "Forex Smart | smartTrade | Demo validation required"
 #include <Trade/Trade.mqh>
 #include "Include/ForexSmartTelegram.mqh"
@@ -44,6 +44,8 @@ input bool AllowResearchWithoutCalendar=false;
 input int NewsMinutes=30;
 // Experimental planner: disabled until comparison against PREVIOUS_PLAN.
 input EntryPlannerSelection EntryPlanner=PREVIOUS_PLAN;
+input TargetAmountPolicy PlanTargetMode=STRUCTURAL_TARGET;
+input double PlanNetProfitUSD=5;
 input bool PlanSaveSignalSnapshots=false;
 input int PlanSnapshotMaxFiles=30;
 input bool PlanSnapshotPruneOldest=true; // Bounded rotation when snapshots enabled; only this account FSSignal files.

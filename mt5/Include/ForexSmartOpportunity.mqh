@@ -92,7 +92,7 @@ bool RefreshPlanForSend(int i,datetime bar,TechnicalPlan &p,double intentEntry=0
  if(MathAbs(q.bid-p.signalClose)>PlanMaxEntryDriftATR*p.atrValue){Reject("Envio: entrada atrasada além da distância ATR do sinal");return false;}
  p.entry=entry;p.requested=entry;p.quoteBid=q.bid;p.quoteAsk=q.ask;p.initialR=MathAbs(entry-p.sl);
  PlanSettings cfg=PlanConfig(s);double cap=StopDistanceCap((int)PlanStopLimitPolicy,cfg.maxStop,p.atrValue,cfg.maxStopATR,pip,PlanAbnormalStopPips);
- if(p.initialR>cap+tickSize*1e-6||p.initialR<=0||(p.targetSource==0&&!TargetFits(p.buy,p.entry,p.sl,p.tp,p.obstacle,q.ask-q.bid,p.clearance,tickSize))){Reject("Envio: geometria técnica invalidada | "+PlanSummary(p));return false;}
+ if(p.initialR>cap+tickSize*1e-6||p.initialR<=0||(p.targetSource==0&&p.targetMode!=FIXED_NET_USD&&!TargetFits(p.buy,p.entry,p.sl,p.tp,p.obstacle,q.ask-q.bid,p.clearance,tickSize))){Reject("Envio: geometria técnica invalidada | "+PlanSummary(p));return false;}
  if(!EvaluateTechnicalEconomics(p,0,originalBudget))return false;
  if(p.minRR<1||p.netGain<=0||!MathIsValidNumber(p.rr)||p.rr+1e-9<p.minRR){Reject("Envio: R:R líquido insuficiente após atualizar preço | "+PlanSummary(p));return false;}
  MqlTick after;if(!SymbolInfoTick(s,after))return false;
@@ -100,7 +100,7 @@ bool RefreshPlanForSend(int i,datetime bar,TechnicalPlan &p,double intentEntry=0
  // Larger changes get a bounded reprice, never a fresh market order or widened SL.
  double move=MathAbs((p.buy?after.ask:after.bid)-p.entry);
  if(move<=SlippageReservePoints*point+tickSize*1e-6&&after.ask-after.bid<=q.ask-q.bid+SlippageReservePoints*point+tickSize*1e-6&&TimeTradeServer()-after.time<=PlanSendMaxQuoteAgeSeconds){
- p.created=TimeTradeServer();Journal("plan_revalidated",PlanSummary(p)+" | refresh_pass="+(string)(pass+1)+" | old_entry="+DoubleToString(originalEntry,8)+" | final_quote_delta_pts="+DoubleToString(move/point,2)+" | protective_SL_TP_unchanged=1");return EntrySession();}
+ p.created=TimeTradeServer();Journal("plan_revalidated",PlanSummary(p)+" | refresh_pass="+(string)(pass+1)+" | old_entry="+DoubleToString(originalEntry,8)+" | final_quote_delta_pts="+DoubleToString(move/point,2)+" | protective_SL_unchanged=1 | cash_TP_repriced_before_dispatch="+(string)(int)(p.targetMode==FIXED_NET_USD));return EntrySession();}
  Journal("send_reprice","plan="+p.id+" | pass="+(string)(pass+1)+" | delta_pts="+DoubleToString(move/point,2));
  }
  Reject("Envio: mercado mudou durante revalidação econômica; limite de atualizações atingido sem ordem");return false;
@@ -128,6 +128,7 @@ bool FinalDispatchGuard(TechnicalPlan &p,datetime bar,bool report=true){
  if(report)Reject("Envio final: falha ao calcular economia atual");return false;}
  checked.risk=(MathAbs(loss)+p.costsPerLot)*p.lot;
  if(!ProjectPlanReward(checked,checked.netGain)){if(report)Reject("Envio final: projeção da saída indisponível");return false;}
+ if(p.targetMode==FIXED_NET_USD){double tickCash=0;if(!CashTickAmount(checked,tickCash)||!CashEstimateFits(checked.netGain,p.cashGoal,tickCash)){if(report)Reject("Envio final: alvo monetário mudou após cotação | projected_net="+DoubleToString(checked.netGain,4)+" | goal="+DoubleToString(p.cashGoal,2));return false;}}
  double currentRR=checked.risk>0?checked.netGain/checked.risk:0,budget=MathMin(p.budget,RiskBudget(RelevantEquity(),RiskPercent));
  if(!MathIsValidNumber(currentRR)||checked.risk>budget+1e-8||currentRR+1e-9<p.minRR){
  if(report)Reject("Envio final: economia mudou | risk="+DoubleToString(checked.risk,4)+" | budget="+DoubleToString(budget,4)+" | RR_net="+DoubleToString(currentRR,4)+" | min_RR="+DoubleToString(p.minRR,4));return false;}

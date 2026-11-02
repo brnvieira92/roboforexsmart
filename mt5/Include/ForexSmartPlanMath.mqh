@@ -7,6 +7,10 @@
 #define FS_PLAN_ARRAY(name) const double &name[]
 #endif
 enum EntryPlannerSelection { PREVIOUS_PLAN=0, TECHNICAL_PLAN=1 };
+enum TargetAmountPolicy { STRUCTURAL_TARGET=0, FIXED_NET_USD=1 };
+double CashRiskBudget(double configured,double goal,double minimumRR){return configured>0&&goal>0&&minimumRR>=1?FSMin(configured,goal/minimumRR):0;}
+double CashRequiredGross(double goal,double lot,double costsPerLot){return goal+lot*costsPerLot;}
+bool CashEstimateFits(double projected,double goal,double tickCash){return goal>0&&tickCash>0&&projected>=goal-tickCash-1e-8&&projected<=goal+tickCash+1e-8;}
 enum PlannedExitSelection { FULL_TECHNICAL_TARGET=0, PARTIAL_AND_TRAIL=1 };
 enum PlannedTrailSelection { CONFIRMED_STRUCTURE=0, VOLATILITY_WITH_STRUCTURE=1 };
 double PipSize(double pointSize,int quoteDigits){return pointSize*((quoteDigits==3||quoteDigits==5)?10:1);}
