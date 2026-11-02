@@ -1,24 +1,27 @@
 #ifndef FOREX_SMART_PLANNER
 #define FOREX_SMART_PLANNER
 struct TechnicalPlan {
- int version;string id;string symbol;string strategy;string regime;string currency;bool buy;int timeframe;datetime created;datetime structureTime;datetime obstacleTime;
+ int version;string opportunity;string module;string id;string symbol;string strategy;string regime;string currency;bool buy;int timeframe;datetime created;datetime structureTime;datetime obstacleTime;
  double managedSL;double quoteBid;double quoteAsk;double requested;double entry;double sl;double tp;double initialR;double atrValue;double atrMultiplier;double buffer;double structure;double obstacle;double clearance;
  double minRR;double rawLot;double lot;double budget;double risk;double netGain;double costsPerLot;double rr;double trailR;double partialR;double mfe;double mae;
- int lookback;int pivotLeft;int pivotRight;int maxAge;int exitPolicy;int trailPolicy;ulong order;bool audited;bool breached;double signalClose;double plannedSL;double plannedTP;
+ int targetSource;int lookback;int pivotLeft;int pivotRight;int maxAge;int exitPolicy;int trailPolicy;ulong order;bool audited;bool breached;double signalClose;double plannedSL;double plannedTP;
 };
 bool lastPlanSpaceRecheck=false;
-struct PlanSettings {ENUM_TIMEFRAMES tf;double multiplier;double bufferPips;double maxStop;double trailR;};
-PlanSettings PlanConfig(string s){PlanSettings c;c.tf=PlanEURTimeframe;c.multiplier=PlanEURATR;c.bufferPips=PlanEURBufferPips;c.maxStop=PlanEURMaxStopPips;c.trailR=PlanEURTrailR;
- if(StringFind(s,"USDJPY")==0){c.tf=PlanJPYTimeframe;c.multiplier=PlanJPYATR;c.bufferPips=PlanJPYBufferPips;c.maxStop=PlanJPYMaxStopPips;c.trailR=PlanJPYTrailR;}
- if(StringFind(s,"USDCHF")==0){c.tf=PlanCHFTimeframe;c.multiplier=PlanCHFATR;c.bufferPips=PlanCHFBufferPips;c.maxStop=PlanCHFMaxStopPips;c.trailR=PlanCHFTrailR;}
- if(StringFind(s,"GBPUSD")==0){c.tf=PlanGBPTimeframe;c.multiplier=PlanGBPATR;c.bufferPips=PlanGBPBufferPips;c.maxStop=PlanGBPMaxStopPips;c.trailR=PlanGBPTrailR;}return c;
+RecoverablePlanFailure lastPlanFailure=PLAN_FINAL;
+struct PlanSettings {ENUM_TIMEFRAMES tf;double multiplier;double bufferPips;double maxStop;double trailR;double maxStopATR;int pivotMaxAge;int waitBars;};
+PlanSettings PlanConfig(string s){PlanSettings c;c.tf=PlanEURTimeframe;c.multiplier=PlanEURATR;c.bufferPips=PlanEURBufferPips;c.maxStop=PlanEURMaxStopPips;c.trailR=PlanEURTrailR;c.maxStopATR=PlanEURMaxStopATR;c.pivotMaxAge=PlanEURPivotMaxAge;c.waitBars=PlanEURWaitBars;
+ if(StringFind(s,"USDJPY")==0){c.tf=PlanJPYTimeframe;c.multiplier=PlanJPYATR;c.bufferPips=PlanJPYBufferPips;c.maxStop=PlanJPYMaxStopPips;c.trailR=PlanJPYTrailR;c.maxStopATR=PlanJPYMaxStopATR;c.pivotMaxAge=PlanJPYPivotMaxAge;c.waitBars=PlanJPYWaitBars;}
+ if(StringFind(s,"USDCHF")==0){c.tf=PlanCHFTimeframe;c.multiplier=PlanCHFATR;c.bufferPips=PlanCHFBufferPips;c.maxStop=PlanCHFMaxStopPips;c.trailR=PlanCHFTrailR;c.maxStopATR=PlanCHFMaxStopATR;c.pivotMaxAge=PlanCHFPivotMaxAge;c.waitBars=PlanCHFWaitBars;}
+ if(StringFind(s,"GBPUSD")==0){c.tf=PlanGBPTimeframe;c.multiplier=PlanGBPATR;c.bufferPips=PlanGBPBufferPips;c.maxStop=PlanGBPMaxStopPips;c.trailR=PlanGBPTrailR;c.maxStopATR=PlanGBPMaxStopATR;c.pivotMaxAge=PlanGBPPivotMaxAge;c.waitBars=PlanGBPWaitBars;}return c;
 }
 bool PlanSettingsValid(){
+ if(PlanCounterfactualHorizonBars<1||PlanCounterfactualHorizonBars>24)return false;
+ if(PlanSendMaxQuoteAgeSeconds<1||PlanSendMaxQuoteAgeSeconds>30||PlanSendRefreshAttempts<1||PlanSendRefreshAttempts>3||PlanSendMaxDriftPips<=0||PlanSendMaxDriftPips>3||PlanAbnormalStopPips<=0||PlanAbnormalStopPips>100||PlanPullbackZoneATR<=0||PlanPullbackZoneATR>1||PlanBreakBufferATR<=0||PlanBreakConfirmCloses<2||PlanBreakConfirmCloses>4)return false;
  if(PlanObstacleMinTouches<2||PlanObstacleMinSpanBars<1||PlanObstacleTouchSeparation<1||PlanObstacleTolerancePips<=0||PlanObstacleBreakCloses<2||PlanObstacleM15Lookback<10||PlanObstacleM15Lookback>250||PlanRecheckIntervalSeconds<2||PlanRecheckLifetimeSeconds<=PlanRecheckIntervalSeconds||PlanRecheckLifetimeSeconds>120||PlanRecheckMaxAttempts<1||PlanRecheckMaxAttempts>5)return false;
  if(PlanSnapshotMaxFiles<1||PlanSnapshotMaxFiles>1000||(PlanAllowTargetExtension&&(PlanExtendedTargetMaxR<PlanMaxTargetR||PlanExtendedTargetMaxR>10)))return false;
  if(PlanHistoryBars<200||PlanHistoryBars>2000||PlanStructureLookback<5||PlanStructureLookback+PlanPivotLeft+1>PlanHistoryBars||PlanPivotLeft<1||PlanPivotRight<1||PlanMaxStructureAge<PlanPivotRight||PlanMaxStructureAge>PlanStructureLookback||PlanMinStopPips<0||PlanBufferATR<0||PlanBufferSpread<0||PlanMaxTargetR<=0||PlanMaxEntryDriftATR<=0||PlanSwapReservePerLot<0||PlanPartialR<1)return false;
  string pairs[4]={"EURUSD","USDJPY","USDCHF","GBPUSD"};
- for(int i=0;i<4;i++){PlanSettings c=PlanConfig(pairs[i]);if((c.tf!=PERIOD_M5&&c.tf!=PERIOD_M15)||c.multiplier<=0||c.bufferPips<0||c.maxStop<=0||c.maxStop<PlanMinStopPips||c.trailR<1)return false;}return true;
+ for(int i=0;i<4;i++){PlanSettings c=PlanConfig(pairs[i]);if(PlanUseEventWaits&&PlanEnableBreakRetest&&i!=2&&c.waitBars<PlanBreakConfirmCloses+2)return false;if((c.tf!=PERIOD_M5&&c.tf!=PERIOD_M15)||c.multiplier<=0||c.bufferPips<0||c.maxStop<=0||c.maxStop<PlanMinStopPips||c.trailR<1||c.maxStopATR<c.multiplier||c.maxStopATR>10||c.waitBars<1||c.waitBars>6||c.pivotMaxAge<PlanPivotRight||c.pivotMaxAge>PlanStructureLookback)return false;}return true;
 }
 string PendingPlanPath(string s){return "FSPlan-"+accountScope+"-pending-"+StringFormat("%I64X",TextFingerprint(s))+".csv";}
 string PositionPlanPath(ulong id){return "FSPlan-"+accountScope+"-"+(string)id+".csv";}
@@ -26,6 +29,8 @@ bool PlanRow(int f,string key,string value){return FileWrite(f,key,value)>0;}
 bool SaveTechnicalPlan(string path,TechnicalPlan &p){
  string temp=path+".tmp";int f=FileOpen(temp,FILE_WRITE|FILE_CSV|FILE_ANSI,';',CP_UTF8);if(f==INVALID_HANDLE)return false;
  bool ok=true;
+ ok=PlanRow(f,"opportunity",p.opportunity)&&ok;ok=PlanRow(f,"module",p.module)&&ok;
+ ok=PlanRow(f,"targetSource",(string)p.targetSource)&&ok;
  ok=PlanRow(f,"version",(string)p.version)&&ok;ok=PlanRow(f,"id",p.id)&&ok;ok=PlanRow(f,"symbol",p.symbol)&&ok;ok=PlanRow(f,"strategy",p.strategy)&&ok;ok=PlanRow(f,"regime",p.regime)&&ok;ok=PlanRow(f,"currency",p.currency)&&ok;ok=PlanRow(f,"buy",(string)(int)p.buy)&&ok;
  ok=PlanRow(f,"timeframe",(string)p.timeframe)&&ok;ok=PlanRow(f,"created",(string)(long)p.created)&&ok;ok=PlanRow(f,"structureTime",(string)(long)p.structureTime)&&ok;ok=PlanRow(f,"obstacleTime",(string)(long)p.obstacleTime)&&ok;
  ok=PlanRow(f,"order",(string)p.order)&&ok;ok=PlanRow(f,"audited",(string)(int)p.audited)&&ok;ok=PlanRow(f,"breached",(string)(int)p.breached)&&ok;
@@ -45,7 +50,7 @@ bool SaveTechnicalPlan(string path,TechnicalPlan &p){
 bool LoadTechnicalPlan(string path,TechnicalPlan &p){
  ZeroMemory(p);int f=FileOpen(path,FILE_READ|FILE_CSV|FILE_ANSI,';',CP_UTF8);if(f==INVALID_HANDLE)return false;
  while(!FileIsEnding(f)){string k=FileReadString(f),v=FileReadString(f);double d=StringToDouble(v);
- if(k=="version")p.version=(int)StringToInteger(v);else if(k=="id")p.id=v;else if(k=="symbol")p.symbol=v;else if(k=="strategy")p.strategy=v;else if(k=="regime")p.regime=v;else if(k=="currency")p.currency=v;else if(k=="buy")p.buy=StringToInteger(v)!=0;
+ if(k=="opportunity")p.opportunity=v;else if(k=="module")p.module=v;else if(k=="targetSource")p.targetSource=(int)StringToInteger(v);else if(k=="version")p.version=(int)StringToInteger(v);else if(k=="id")p.id=v;else if(k=="symbol")p.symbol=v;else if(k=="strategy")p.strategy=v;else if(k=="regime")p.regime=v;else if(k=="currency")p.currency=v;else if(k=="buy")p.buy=StringToInteger(v)!=0;
  else if(k=="timeframe")p.timeframe=(int)StringToInteger(v);else if(k=="created")p.created=(datetime)StringToInteger(v);else if(k=="structureTime")p.structureTime=(datetime)StringToInteger(v);else if(k=="obstacleTime")p.obstacleTime=(datetime)StringToInteger(v);
  else if(k=="order")p.order=(ulong)StringToInteger(v);else if(k=="audited")p.audited=StringToInteger(v)!=0;else if(k=="breached")p.breached=StringToInteger(v)!=0;
  else if(k=="lookback")p.lookback=(int)StringToInteger(v);else if(k=="pivotLeft")p.pivotLeft=(int)StringToInteger(v);else if(k=="pivotRight")p.pivotRight=(int)StringToInteger(v);else if(k=="maxAge")p.maxAge=(int)StringToInteger(v);
@@ -57,11 +62,11 @@ bool LoadTechnicalPlan(string path,TechnicalPlan &p){
  else if(k=="lot")p.lot=d;else if(k=="budget")p.budget=d;else if(k=="risk")p.risk=d;else if(k=="netGain")p.netGain=d;else if(k=="costsPerLot")p.costsPerLot=d;else if(k=="rr")p.rr=d;
  else if(k=="trailR")p.trailR=d;else if(k=="partialR")p.partialR=d;else if(k=="mfe")p.mfe=d;else if(k=="mae")p.mae=d;else if(k=="signalClose")p.signalClose=d;else if(k=="plannedSL")p.plannedSL=d;else if(k=="plannedTP")p.plannedTP=d;
  }
- FileClose(f);return p.version==3&&p.id!=""&&p.symbol!=""&&p.strategy!=""&&p.entry>0&&p.sl>0&&p.tp>0&&p.initialR>0&&MathIsValidNumber(p.initialR)&&p.lot>0&&p.budget>0&&p.minRR>0&&p.pivotLeft>0&&p.pivotRight>0&&p.maxAge>=p.pivotRight&&(p.timeframe==PERIOD_M5||p.timeframe==PERIOD_M15);
+ FileClose(f);if(p.opportunity=="")p.opportunity=p.id;if(p.module=="")p.module=p.strategy;return p.version==3&&p.id!=""&&p.symbol!=""&&p.strategy!=""&&p.entry>0&&p.sl>0&&p.tp>0&&p.initialR>0&&MathIsValidNumber(p.initialR)&&p.lot>0&&p.budget>0&&p.minRR>0&&p.pivotLeft>0&&p.pivotRight>0&&p.maxAge>=p.pivotRight&&(p.timeframe==PERIOD_M5||p.timeframe==PERIOD_M15);
 }
 void PlanCritical(string message){criticalFailure=true;sessionState.authorized=false;Journal("plan_critical",message);Notify("Planejamento: entradas desarmadas | "+message);}
 bool ClosedPlanData(string s,ENUM_TIMEFRAMES tf,MqlRates &bars[],double &h[],double &l[],double &c[],double &wilder){
- ArraySetAsSeries(bars,true);int n=CopyRates(s,tf,1,PlanHistoryBars,bars);if(n!=PlanHistoryBars)return false;
+ ArraySetAsSeries(bars,true);int n=CopyRates(s,tf,1,PlanHistoryBars,bars);if(n!=PlanHistoryBars||TimeTradeServer()-bars[0].time>2*PeriodSeconds(tf))return false;
  ArrayResize(h,n);ArrayResize(l,n);ArrayResize(c,n);
  for(int j=0;j<n;j++){h[j]=bars[j].high;l[j]=bars[j].low;c[j]=bars[j].close;if(!MathIsValidNumber(h[j])||!MathIsValidNumber(l[j])||!MathIsValidNumber(c[j])||h[j]<l[j]||l[j]<=0||bars[j].time+PeriodSeconds(tf)>TimeTradeServer()||(j>0&&bars[j].time>=bars[j-1].time))return false;}
  wilder=WilderATR(h,l,c,n,14);return MathIsValidNumber(wilder)&&wilder>0;
@@ -105,7 +110,7 @@ string PlanSummary(TechnicalPlan &p){double pointSize=SymbolInfoDouble(p.symbol,
  string targetPips=p.tp>0&&pip>0?DoubleToString(distance/pip,2):"N/A";
  string grossRR=p.tp>0&&distance>0&&p.initialR>0?DoubleToString(distance/p.initialR,4):"N/A";
  string netRR=p.risk>0&&p.tp>0&&distance>0?DoubleToString(p.rr,4):"N/A";
- return "plan="+p.id+" | strategy="+p.strategy+" | regime="+p.regime+" | symbol="+p.symbol+" | side="+(p.buy?"BUY":"SELL")+" | tf="+EnumToString((ENUM_TIMEFRAMES)p.timeframe)+" | structure_time="+TimeToString(p.structureTime,TIME_DATE|TIME_SECONDS)+" | structure_bid="+DoubleToString(p.structure,8)+" | obstacle_time="+TimeToString(p.obstacleTime,TIME_DATE|TIME_SECONDS)+" | obstacle_bid="+DoubleToString(p.obstacle,8)+" | WilderATR14="+DoubleToString(p.atrValue,8)+" | multiplier="+DoubleToString(p.atrMultiplier,2)+" | buffer_pips="+DoubleToString(p.buffer/pip,2)+" | entry="+DoubleToString(p.entry,8)+" | SL="+DoubleToString(p.sl,8)+" | SL_pips="+DoubleToString(p.initialR/pip,2)+" | TP="+DoubleToString(p.tp,8)+" | TP_state="+targetState+" | TP_pips="+targetPips+" | raw_lot="+DoubleToString(p.rawLot,8)+" | lot="+DoubleToString(p.lot,8)+" | budget="+DoubleToString(p.budget,4)+" | risk="+DoubleToString(p.risk,4)+" | net_gain="+DoubleToString(p.netGain,4)+" | RR_gross="+grossRR+" | RR_net="+netRR+" | cost_per_lot="+DoubleToString(p.costsPerLot,4)+" | exit_policy="+(string)p.exitPolicy+" | currency="+p.currency+" | SL_structural="+DoubleToString(p.buy?p.structure-p.buffer:p.structure+p.buffer+p.quoteAsk-p.quoteBid,8)+" | schema=3 | timezone=SERVER";
+ return "plan="+p.id+" | strategy="+p.strategy+" | regime="+p.regime+" | symbol="+p.symbol+" | side="+(p.buy?"BUY":"SELL")+" | tf="+EnumToString((ENUM_TIMEFRAMES)p.timeframe)+" | structure_time="+TimeToString(p.structureTime,TIME_DATE|TIME_SECONDS)+" | structure_bid="+DoubleToString(p.structure,8)+" | obstacle_time="+TimeToString(p.obstacleTime,TIME_DATE|TIME_SECONDS)+" | obstacle_bid="+DoubleToString(p.obstacle,8)+" | WilderATR14="+DoubleToString(p.atrValue,8)+" | multiplier="+DoubleToString(p.atrMultiplier,2)+" | buffer_pips="+DoubleToString(p.buffer/pip,2)+" | entry="+DoubleToString(p.entry,8)+" | SL="+DoubleToString(p.sl,8)+" | SL_pips="+DoubleToString(p.initialR/pip,2)+" | TP="+DoubleToString(p.tp,8)+" | TP_state="+targetState+" | TP_pips="+targetPips+" | raw_lot="+DoubleToString(p.rawLot,8)+" | lot="+DoubleToString(p.lot,8)+" | budget="+DoubleToString(p.budget,4)+" | risk="+DoubleToString(p.risk,4)+" | net_gain="+DoubleToString(p.netGain,4)+" | RR_gross="+grossRR+" | RR_net="+netRR+" | cost_per_lot="+DoubleToString(p.costsPerLot,4)+" | exit_policy="+(string)p.exitPolicy+" | currency="+p.currency+" | SL_structural="+DoubleToString(p.buy?p.structure-p.buffer:p.structure+p.buffer+p.quoteAsk-p.quoteBid,8)+" | target_source="+(p.targetSource==1?"VOLATILITY_NO_CONFIRMED_LEVEL":p.targetSource==2?"NO_ELIGIBLE_LEVEL":"CONFIRMED_OBSTACLE")+" | opportunity="+p.opportunity+" | module="+p.module+" | schema=3 | timezone=SERVER";
 }
 bool ProjectPlanReward(TechnicalPlan &p,double &projected){
  double full=0,partWin=0;if(!OrderCalcProfit(p.buy?ORDER_TYPE_BUY:ORDER_TYPE_SELL,p.symbol,1,p.entry,p.tp,full))return false;
@@ -133,7 +138,7 @@ int SelectPlanObstacle(string symbol,const double &h[],const double &l[],const d
  int copied=CopyRates(symbol,PERIOD_M15,1,requested,m15);bool m15Ready=copied==requested;
  double mh[],ml[];if(m15Ready){ArrayResize(mh,copied);ArrayResize(ml,copied);
  for(int j=0;j<copied;j++){mh[j]=m15[j].high;ml[j]=m15[j].low;if(m15[j].time+PeriodSeconds(PERIOD_M15)>TimeTradeServer()||!MathIsValidNumber(mh[j])||!MathIsValidNumber(ml[j])||mh[j]<ml[j]||ml[j]<=0)m15Ready=false;}}
- if(!m15Ready&&PlanObstacleSelection!=ALL_CONFIRMED_PIVOTS)return -2;
+ if(!m15Ready&&(PlanObstacleSelection==RETESTED_OR_M15||PlanObstacleSelection==M15_CONFIRMED_ONLY))return -2;
  double tolerance=PlanObstacleTolerancePips*pip;int best=-1,selectedTouches=0,selectedSpan=0;bool selectedM15=false,selectedBroken=false;datetime selectedM15Time=0;
  int rejected=0;
  for(int i=PlanPivotRight;i<count-PlanPivotLeft&&i<=PlanStructureLookback;i++){
@@ -142,6 +147,7 @@ int SelectPlanObstacle(string symbol,const double &h[],const double &l[],const d
  int span=0,touches=PivotTouches(h,l,count,i,PlanPivotRight,highLevel,level,tolerance,PlanObstacleTouchSeparation,span);
  bool broken=PivotBroken(c,count,i,PlanPivotRight,highLevel,level,tolerance,PlanObstacleBreakCloses);
  int matched=m15Ready?ConfluencePivotIndex(mh,ml,copied,PlanPivotLeft,PlanPivotRight,highLevel,level,tolerance):-1;bool confluence=matched>=0;
+ if(intentModule=="BREAK_RETEST"&&broken){rejected++;continue;}
  if(!ObstacleQualified((int)PlanObstacleSelection,touches,span,PlanObstacleMinTouches,PlanObstacleMinSpanBars,confluence,broken)){rejected++;continue;}
  if(best<0||(buy?level<h[best]:level>l[best])){best=i;selectedTouches=touches;selectedSpan=span;selectedM15=confluence;selectedBroken=broken;selectedM15Time=confluence?m15[matched].time:0;}
  }
@@ -151,10 +157,10 @@ int SelectPlanObstacle(string symbol,const double &h[],const double &l[],const d
  return best;
 }
 bool PrepareTechnicalPlan(int index,bool buy,double signalClose,double oldStop,double oldTarget,TechnicalPlan &p){
- lastPlanSpaceRecheck=false;ZeroMemory(p);string s=symbols[index];PlanSettings cfg=PlanConfig(s);p.version=3;p.id=s+"/"+lastStrategy+"/"+(string)(long)iTime(s,PERIOD_M5,0);activePlanID=p.id;
+ lastPlanSpaceRecheck=false;lastPlanFailure=PLAN_FINAL;ZeroMemory(p);string s=symbols[index];PlanSettings cfg=PlanConfig(s);p.version=3;p.id=s+"/"+lastStrategy+"/"+(string)(long)iTime(s,PERIOD_M5,0);activePlanID=p.id;p.opportunity=intentParent!=""?intentParent:p.id;p.module=intentModule!=""?intentModule:lastStrategy;
  if(StringFind(s,"EURUSD")!=0&&StringFind(s,"USDJPY")!=0&&StringFind(s,"USDCHF")!=0&&StringFind(s,"GBPUSD")!=0){Reject("Sem perfil técnico explícito para o símbolo");return false;}
  p.symbol=s;p.strategy=lastStrategy;p.regime=lastRegime;p.currency=AccountInfoString(ACCOUNT_CURRENCY);p.buy=buy;p.timeframe=(int)cfg.tf;p.created=TimeTradeServer();p.signalClose=signalClose;
- p.lookback=PlanStructureLookback;p.pivotLeft=PlanPivotLeft;p.pivotRight=PlanPivotRight;p.maxAge=PlanMaxStructureAge;
+ p.lookback=PlanStructureLookback;p.pivotLeft=PlanPivotLeft;p.pivotRight=PlanPivotRight;p.maxAge=PlanUsePairPivotAge?cfg.pivotMaxAge:PlanMaxStructureAge;
  p.trailR=cfg.trailR;p.partialR=PlanPartialR;p.exitPolicy=(int)PlanExitPolicy;p.trailPolicy=(int)PlanTrailPolicy;
  if(SymbolInfoInteger(s,SYMBOL_CHART_MODE)!=SYMBOL_CHART_MODE_BID){Reject("Base de candles não é Bid; plano não suportado");return false;}
  MqlTick tick;if(!SymbolInfoTick(s,tick)||TimeCurrent()-tick.time>30||tick.bid<=0||tick.ask<tick.bid){Reject("Cotação ausente/antiga no plano");return false;}
@@ -167,27 +173,32 @@ bool PrepareTechnicalPlan(int index,bool buy,double signalClose,double oldStop,d
  p.atrValue=wilder;p.atrMultiplier=cfg.multiplier;p.entry=buy?tick.ask:tick.bid;p.requested=p.entry;
  if(MathAbs(tick.bid-signalClose)>PlanMaxEntryDriftATR*wilder){Reject("Preço afastado do sinal; oportunidade expirada");return false;}
  int count=MathMin(PlanStructureLookback+PlanPivotLeft+1,ArraySize(h));
- int pivot=FindInvalidation(h,l,count,PlanPivotLeft,PlanPivotRight,PlanMaxStructureAge,buy,p.entry);
+ int pivot=FindInvalidation(h,l,count,PlanPivotLeft,PlanPivotRight,p.maxAge,buy,p.entry);
  int obstacle=SelectPlanObstacle(s,h,l,c,count,buy,p.entry,pip,p.id);
- if(pivot<0){Reject("Sem pivô de invalidação confirmado dentro da idade máxima");return false;}
+ if(pivot<0){lastPlanFailure=PLAN_PIVOT;Reject("Sem pivô de invalidação confirmado dentro da idade máxima");return false;}
  if(obstacle==-2){Reject("Dados M15 indisponíveis para qualificar obstáculos");return false;}
- if(obstacle<0){Reject("Sem obstáculo/alvo técnico confirmado; espaço desconhecido");return false;}
- p.structure=buy?l[pivot]:h[pivot];p.structureTime=bars[pivot].time;p.obstacle=buy?h[obstacle]:l[obstacle];p.obstacleTime=bars[obstacle].time;
+ bool volatilityTarget=obstacle<0&&intentModule=="BREAK_RETEST"&&PlanBreakVolatilityTarget;
+
+ p.structure=buy?l[pivot]:h[pivot];p.structureTime=bars[pivot].time;if(obstacle>=0){p.obstacle=buy?h[obstacle]:l[obstacle];p.obstacleTime=bars[obstacle].time;}else p.targetSource=volatilityTarget?1:2;
  p.buffer=MathMax(cfg.bufferPips*pip,MathMax(PlanBufferATR*wilder,PlanBufferSpread*(tick.ask-tick.bid)));p.clearance=p.buffer;
  double minimum=(MathMax(SymbolInfoInteger(s,SYMBOL_TRADE_STOPS_LEVEL),SymbolInfoInteger(s,SYMBOL_TRADE_FREEZE_LEVEL))+2)*pointSize;
  p.sl=TechnicalStop(buy,p.entry,tick.bid,tick.ask,p.structure,p.buffer,MathMax(cfg.multiplier*wilder,PlanMinStopPips*pip),minimum,tickSize);p.initialR=MathAbs(p.entry-p.sl);
- if(!StopWithinLimit(p.initialR,cfg.maxStop,pip,tickSize)){Journal("plan_geometry",PlanSummary(p));Reject("Stop técnico excede máximo operacional; não será encurtado");return false;}
- p.tp=TechnicalTarget(buy,p.entry,tick.ask-tick.bid,p.obstacle,p.clearance,p.initialR,PlanMaxTargetR,tickSize);
+ double stopCap=StopDistanceCap((int)PlanStopLimitPolicy,cfg.maxStop,wilder,cfg.maxStopATR,pip,PlanAbnormalStopPips);
+ Journal("stop_policy","plan="+p.id+" | policy="+EnumToString(PlanStopLimitPolicy)+" | distance_pips="+DoubleToString(p.initialR/pip,2)+" | cap_pips="+DoubleToString(stopCap/pip,2)+" | distance_ATR="+DoubleToString(p.initialR/wilder,2)+" | structure_age="+(string)pivot+" | max_age="+(string)p.maxAge);
+ if(p.initialR<=0||p.initialR>stopCap+tickSize*1e-6){lastPlanFailure=PLAN_STOP_DISTANCE;Journal("plan_geometry",PlanSummary(p));Reject("Stop técnico excede máximo operacional; não será encurtado");return false;}
+ if(obstacle<0&&!volatilityTarget){lastPlanFailure=PLAN_NO_LEVEL;Reject("Nenhum nível elegível no lookback fechado; alvo estrutural indisponível");return false;}
+ p.tp=volatilityTarget?(buy?TickDown(p.entry+p.initialR*PlanMaxTargetR,tickSize):TickUp(p.entry-p.initialR*PlanMaxTargetR,tickSize)):TechnicalTarget(buy,p.entry,tick.ask-tick.bid,p.obstacle,p.clearance,p.initialR,PlanMaxTargetR,tickSize);
  if(StrategyMode==LEGACY){double limit=MaxTPPoints*pointSize;p.tp=buy?TickDown(MathMin(p.tp,p.entry+limit),tickSize):TickUp(MathMax(p.tp,p.entry-limit),tickSize);}
  p.plannedSL=p.sl;p.plannedTP=p.tp;p.minRR=oldStop>0?oldTarget/oldStop:0;
  if(StrategyMode==MULTISTRATEGY){ResearchConfig cfig=Config(s);p.minRR=cfig.reward;}
+ if(p.minRR<1){Reject("Política técnica exige R:R líquido mínimo >= 1");return false;}
  Journal("plan_geometry",PlanSummary(p)+" | bid="+DoubleToString(tick.bid,8)+" | ask="+DoubleToString(tick.ask,8)+" | point="+DoubleToString(pointSize,8)+" | pip="+DoubleToString(pip,8)+" | tick="+DoubleToString(tickSize,8)+" | thesis=existing_signal_confirmed");
- if(!TargetFits(buy,p.entry,p.sl,p.tp,p.obstacle,tick.ask-tick.bid,p.clearance,tickSize)){lastPlanSpaceRecheck=true;Reject("Obstáculo sem espaço para alvo executável");return false;}
+ if(!volatilityTarget&&!TargetFits(buy,p.entry,p.sl,p.tp,p.obstacle,tick.ask-tick.bid,p.clearance,tickSize)){lastPlanSpaceRecheck=true;lastPlanFailure=PLAN_SPACE;Reject("Obstáculo sem espaço para alvo executável");return false;}
  if(!EvaluateTechnicalEconomics(p))return false;
  Journal("plan_evaluation",PlanSummary(p));
  if(!MathIsValidNumber(p.rr)||p.minRR<=0||p.rr+1e-9<p.minRR||p.netGain<=0){
  bool extended=false;
- if(PlanAllowTargetExtension&&p.minRR>0){
+ if(PlanAllowTargetExtension&&p.minRR>0&&!volatilityTarget){
  TechnicalPlan candidate;candidate=p;
  candidate.tp=TechnicalTarget(buy,p.entry,tick.ask-tick.bid,p.obstacle,p.clearance,p.initialR,PlanExtendedTargetMaxR,tickSize);
  if(StrategyMode==LEGACY){double limit=MaxTPPoints*pointSize;candidate.tp=buy?TickDown(MathMin(candidate.tp,p.entry+limit),tickSize):TickUp(MathMax(candidate.tp,p.entry-limit),tickSize);}
@@ -197,9 +208,9 @@ bool PrepareTechnicalPlan(int index,bool buy,double signalClose,double oldStop,d
  if(MathIsValidNumber(candidate.rr)&&candidate.rr+1e-9>=candidate.minRR&&candidate.netGain>0){candidate.plannedTP=candidate.tp;p=candidate;extended=true;}
  }
  }
- if(!extended){lastPlanSpaceRecheck=true;Reject("Espaço técnico não cobre R:R líquido mínimo; não será ignorado o obstáculo");return false;}
+ if(!extended){lastPlanSpaceRecheck=true;lastPlanFailure=PLAN_SPACE;Reject("Espaço técnico não cobre R:R líquido mínimo; não será ignorado o obstáculo");return false;}
  }
- Journal("plan_accepted",PlanSummary(p)+" | decision=all_required_checks_passed_no_win_probability");
+ Journal("plan_candidate",PlanSummary(p)+" | decision=construction_passed_pending_send_revalidation");
  return true;
 }
 bool IsTechnicalPosition(){ulong id=(ulong)PositionGetInteger(POSITION_IDENTIFIER);return FileIsExist(PositionPlanPath(id))||StringFind(PositionGetString(POSITION_COMMENT),"FS3:")==0||(GlobalVariableCheck(StateKey("v."+(string)id))&&GlobalVariableGet(StateKey("v."+(string)id))==3);}

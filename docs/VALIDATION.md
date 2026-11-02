@@ -142,3 +142,21 @@ Veja [TP_AND_SNAPSHOTS.md](TP_AND_SNAPSHOTS.md) para a análise de 22 rejeiçõe
 ## v2.13
 
 Veja [OBSTACLES_AND_RECHECK.md](OBSTACLES_AND_RECHECK.md) para relevância M5/M15, retestes, rompimento por fechamentos e verificações adicionais limitadas sem reenvio de ordens. Compilação e testes de execução MT5 seguem pendentes.
+
+
+## v2.14
+
+Veja [execução e oportunidades](EXECUTION_AND_OPPORTUNITIES.md) e a [auditoria histórica](reports/2026-11-02-audit.md). As políticas novas são opcionais e têm matriz de ablação. Testes locais não certificam chamadas de negociação MQL5. Nenhuma ordem enviada.
+
+Comandos locais:
+
+```bash
+python -m unittest discover -s tests -v
+g++ -std=c++17 -Wall -Wextra -Werror tests/native/test_core.cpp -o /tmp/fs-core && /tmp/fs-core
+g++ -std=c++17 -Wall -Wextra -Werror tests/native/test_plan.cpp -o /tmp/fs-plan && /tmp/fs-plan
+g++ -std=c++17 -Wall -Wextra -Werror tests/native/test_opportunity.cpp -o /tmp/fs-opportunity && /tmp/fs-opportunity
+```
+
+A auditoria do diário e a geometria dos oito stops são análise dos valores registrados. Não há ticks posteriores para executar backtest econômico ou medir operações lucrativas recuperadas. Esse resultado permanece não medido.
+
+Resultados locais obtidos nesta entrega: **16 testes Python passaram**, incluindo associação de rechecks intercalados por símbolo e deduplicação de duas aprovações da mesma intenção. **Três harnesses C++ passaram** com `-Wall -Wextra -Werror`; compilam as próprias funções de política compartilhadas. Casos novos incluem spread aumentado ainda dentro dos limites, preço/spread/idade fora da tolerância, geometria23.1pips vs ATR/teto, redução de lote, dois fechamentos vs wick, contagem interrompida, reteste/rompimento falhado, pullback com/sem toque, expiração e tratamento OHLC ambíguo/stop-first. Integridade do pacote de12 fontes e instalação/backup também passaram. Isso não exercita a API MQL5, o disco do Windows, chamadas ao servidor nem transações reais.

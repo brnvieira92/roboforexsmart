@@ -13,7 +13,7 @@ void CancelSpaceRecheck(int i,string reason){
  Journal("recheck_cancel","symbol="+symbols[i]+" | signal_bar="+(string)(long)spaceRechecks[i].bar+" | attempts="+(string)spaceRechecks[i].attempts+" | reason="+reason);
 }
 void ScheduleSpaceRecheck(int i,bool buy,datetime bar,double invalidationSL){
- if(!PlanEnableSpaceRecheck||EntryPlanner!=TECHNICAL_PLAN||!lastPlanSpaceRecheck||!EntrySession()||invalidationSL<=0)return;
+ if(PlanUseEventWaits||!PlanEnableSpaceRecheck||EntryPlanner!=TECHNICAL_PLAN||!lastPlanSpaceRecheck||!EntrySession()||invalidationSL<=0)return;
  EnsureSpaceRechecks();spaceRechecks[i].active=true;spaceRechecks[i].buy=buy;spaceRechecks[i].attempts=0;
  spaceRechecks[i].born=TimeTradeServer();spaceRechecks[i].checked=TimeTradeServer();spaceRechecks[i].bar=bar;
  spaceRechecks[i].identity=Identity();spaceRechecks[i].generation=authorizationGeneration;spaceRechecks[i].strategy=lastStrategy;spaceRechecks[i].invalidationSL=invalidationSL;
@@ -22,7 +22,7 @@ void ScheduleSpaceRecheck(int i,bool buy,datetime bar,double invalidationSL){
 bool ReadSignalForEntry(int i,int &direction,double &signalClose,double &stop,double &target){
  double f=Value(fastHandles[i],1),slo=Value(slowHandles[i],1),a=Value(atrHandles[i],1);
  if(f==EMPTY_VALUE||slo==EMPTY_VALUE||a==EMPTY_VALUE||a<=0)return false;
- MqlRates rates[];ArraySetAsSeries(rates,true);if(CopyRates(symbols[i],PERIOD_M5,1,3,rates)!=3)return false;
+ MqlRates rates[];ArraySetAsSeries(rates,true);if(CopyRates(symbols[i],PERIOD_M5,1,3,rates)!=3||rates[0].time+300!=iTime(symbols[i],PERIOD_M5,0))return false;
  lastStrategy="LEGACY";lastRegime="LEGACY";signalClose=rates[0].close;
  direction=LegacyDirection(f,slo,rates[1].close,rates[0].close);
  stop=LegacyStop(a);target=LegacyTarget(a,SymbolInfoDouble(symbols[i],SYMBOL_POINT),f,slo,MinTPPoints,MaxTPPoints);

@@ -1,6 +1,8 @@
 # smartTrade — Forex Smart
 
-Versão da branch de desenvolvimento: **v2.13**. Novo planejamento técnico **opcional e ainda sem validação no MT5**, com rollback por `EntryPlanner=PREVIOUS_PLAN` (padrão). Leia primeiro [planejamento técnico, evidências, parâmetros e validação](docs/TECHNICAL_PLANNER.md).
+Versão da branch de desenvolvimento: **v2.14**. Novo planejamento técnico **opcional e ainda sem validação no MT5**, com rollback por `EntryPlanner=PREVIOUS_PLAN` (padrão). Leia primeiro [planejamento técnico, evidências, parâmetros e validação](docs/TECHNICAL_PLANNER.md).
+
+V2.14: [correção de envio, esperas por eventos, módulos opcionais, funil e teste por ablação](docs/EXECUTION_AND_OPPORTUNITIES.md). [Auditoria do CSV enviado em 02/11](docs/reports/2026-11-02-audit.md).
 
 Atualização no Windows, dentro do projeto:
 
@@ -10,7 +12,7 @@ git pull --ff-only origin development/safe-multistrategy
 py tools\install_mt5.py "C:\caminho\da\Pasta de Dados do MT5"
 ```
 
-Desligue Algo Trading e aguarde ficar flat antes de instalar. O instalador copia EA + nove includes, confere hashes e faz backup; não compila nem habilita negociação. Depois, compile `MQL5/Experts/ForexSmart.mq5` com F7 e confira v2.13. Não foi executada compilação MQL5 nesta tarefa. Novos arquivos de plano são locais e não devem ser apagados com posições abertas.
+Desligue Algo Trading e aguarde ficar flat antes de instalar. O instalador copia EA + onze includes, confere hashes e faz backup; não compila nem habilita negociação. Depois, compile `MQL5/Experts/ForexSmart.mq5` com F7 e confira v2.14. Não foi executada compilação MQL5 nesta tarefa. Novos arquivos de plano são locais e não devem ser apagados com posições abertas.
 
 
 Primeira versão de Expert Advisor MQL5. **Não compilada nem validada em MT5 neste ambiente Linux. Não existe evidência de rentabilidade.** Inicia somente com alertas (`AutoTrade=false`).
@@ -134,4 +136,4 @@ Nenhum desses comandos envia ordens. C++ compila apenas as políticas matemátic
 Na v2.12, leia [extensão de TP e arquivos FSSignal](docs/TP_AND_SNAPSHOTS.md). Snapshots ficam desligados por padrão, com limite e limpeza opcional quando habilitados. A extensão de TP é opcional e nunca ignora o obstáculo técnico ou aumenta lote/risco.
 
 
-V2.13: [classificação dos obstáculos e reavaliação limitada](docs/OBSTACLES_AND_RECHECK.md). Os modos experimentais são opcionais, com comparação/rollback por inputs. O instalador agora verifica dez arquivos de fonte.
+V2.13: [classificação dos obstáculos e reavaliação limitada](docs/OBSTACLES_AND_RECHECK.md). Os modos experimentais são opcionais, com comparação/rollback por inputs. Esse pacote histórico tinha dez arquivos; o pacote atual v2.14 verifica doze.

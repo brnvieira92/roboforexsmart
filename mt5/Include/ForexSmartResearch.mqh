@@ -2,8 +2,12 @@
 #define FOREX_SMART_RESEARCH
 struct ResearchHandles {int h50;int h200;int m20;int adx;int bands;int rsi;int atr15;};
 ResearchHandles research[];
-int PolicyCode(string id){if(id=="EUR_T01")return 1;if(id=="JPY_B01")return 2;if(id=="CHF_R01")return 3;if(id=="GBP_T01")return 4;return 0;}
-string PolicyName(int code){if(code==1)return "EUR_T01";if(code==2)return "JPY_B01";if(code==3)return "CHF_R01";if(code==4)return "GBP_T01";return "LEGACY";}
+int PolicyCode(string id){if(id=="EUR_T01")return 1;if(id=="JPY_B01")return 2;if(id=="CHF_R01")return 3;if(id=="GBP_T01")return 4;
+ if(id=="EUR_P01")return 11;if(id=="JPY_P01")return 12;if(id=="GBP_P01")return 14;
+ if(id=="EUR_BR01")return 21;if(id=="JPY_BR01")return 22;if(id=="GBP_BR01")return 24;return 0;}
+string PolicyName(int code){if(code==1)return "EUR_T01";if(code==2)return "JPY_B01";if(code==3)return "CHF_R01";if(code==4)return "GBP_T01";
+ if(code==11)return "EUR_P01";if(code==12)return "JPY_P01";if(code==14)return "GBP_P01";
+ if(code==21)return "EUR_BR01";if(code==22)return "JPY_BR01";if(code==24)return "GBP_BR01";return "LEGACY";}
 bool SessionRange(string symbol,double &high,double &low){
  MqlDateTime d;TimeToStruct(TimeTradeServer(),d);d.hour=ResearchStartHour;d.min=0;d.sec=0;datetime begin=StructToTime(d),end=begin+RangeBars*300;
  if(TimeTradeServer()<end+300)return false;

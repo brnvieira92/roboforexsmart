@@ -43,7 +43,7 @@ int FindObstacle(FS_PLAN_ARRAY(h),FS_PLAN_ARRAY(l),int count,int left,int right,
  if(!buy&&l[i]<entryPrice&&ConfirmedPivot(l,count,i,left,right,false)&&(best<0||l[i]>l[best]))best=i;
  }return best;
 }
-enum ObstacleSelectionPolicy { ALL_CONFIRMED_PIVOTS=0, RETESTED_OR_M15=1, M15_CONFIRMED_ONLY=2 };
+enum ObstacleSelectionPolicy { ALL_CONFIRMED_PIVOTS=0, RETESTED_OR_M15=1, M15_CONFIRMED_ONLY=2, UNBROKEN_CONFIRMED_PIVOTS=3 };
 // Count separated touches AFTER a pivot, excluding the candles that confirmed it.
 int PivotTouches(FS_PLAN_ARRAY(h),FS_PLAN_ARRAY(l),int count,int pivot,int right,bool highLevel,double level,double tolerance,int separation,int &span){
  if(pivot<0||pivot>=count||right<1||separation<1){span=0;return 0;}
@@ -67,6 +67,7 @@ int ConfluencePivotIndex(FS_PLAN_ARRAY(h),FS_PLAN_ARRAY(l),int count,int left,in
 bool ObstacleQualified(int policy,int touches,int span,int minimumTouches,int minimumSpan,bool m15,bool broken){
  if(policy==ALL_CONFIRMED_PIVOTS)return true;
  if(broken)return false;
+ if(policy==UNBROKEN_CONFIRMED_PIVOTS)return true;
  if(policy==M15_CONFIRMED_ONLY)return m15;
  return m15||(touches>=minimumTouches&&span>=minimumSpan);
 }
@@ -74,6 +75,40 @@ bool ObstacleQualified(int policy,int touches,int span,int minimumTouches,int mi
 int RetryDecision(bool sameAccount,bool sameSession,bool permitted,bool sameBar,bool sameSignal,bool dispatched,int attempts,int maximum,long age,long delayElapsed,int interval,int lifetime){
  if(!sameAccount||!sameSession||!permitted||!sameBar||!sameSignal||dispatched||attempts>=maximum||age<0||age>=lifetime)return 0;
  return delayElapsed>=interval?2:1;
+}
+enum StopLimitPolicy { FIXED_PIP_LIMIT=0, ATR_WITH_ABSOLUTE_CAP=1 };
+enum OpportunityState { WAIT_PULLBACK=0, WAIT_BREAKOUT=1, WAIT_RETEST=2, WAIT_SPREAD=3, INVALIDATED=4, EXPIRED=5, APPROVED=6, SUBMITTED=7, FILLED=8 };
+enum RecoverablePlanFailure { PLAN_FINAL=0, PLAN_SPACE=1, PLAN_STOP_DISTANCE=2, PLAN_PIVOT=3, PLAN_NO_LEVEL=4 };
+double StopDistanceCap(int policy,double fixedPips,double atrValue,double atrMultiple,double pip,double abnormalPips){
+ if(pip<=0)return 0;
+ return policy==FIXED_PIP_LIMIT?fixedPips*pip:FSMin(atrValue*atrMultiple,abnormalPips*pip);
+}
+bool QuoteWithinSendPolicy(double oldEntry,double newEntry,double bid,double ask,double age,double maximumAge,double pip,double maximumDriftPips,double pointSize,int maximumSpreadPoints){
+ return oldEntry>0&&newEntry>0&&bid>0&&ask>=bid&&age>=0&&age<=maximumAge&&pip>0&&pointSize>0&&FSAbs(newEntry-oldEntry)<=maximumDriftPips*pip+1e-12&&(ask-bid)/pointSize<=maximumSpreadPoints+1e-8;
+}
+bool PullbackConfirmed(bool buy,double zone,double tolerance,double priorLow,double priorHigh,double candleOpen,double candleClose,double candleLow,double candleHigh){
+ bool touched=priorLow<=zone+tolerance&&priorHigh>=zone-tolerance;
+ return touched&&(buy?(candleClose>candleOpen&&candleClose>priorHigh&&candleLow>zone-tolerance*2):(candleClose<candleOpen&&candleClose<priorLow&&candleHigh<zone+tolerance*2));
+}
+bool RetestConfirmed(bool buy,double level,double tolerance,double candleOpen,double candleClose,double candleLow,double candleHigh){
+ return candleLow<=level+tolerance&&candleHigh>=level-tolerance&&(buy?candleClose>level+tolerance&&candleClose>candleOpen:candleClose<level-tolerance&&candleClose<candleOpen);
+}
+bool BeyondLevel(bool buy,double closePrice,double level,double buffer){return buy?closePrice>level+buffer:closePrice<level-buffer;}
+// Closed-candle event transition: 0=wait, 1=break confirmed, 2=entry trigger, 3=failed break.
+int ClosedWaitEvent(int state,bool buy,double zone,double barrier,double pullbackTolerance,double breakTolerance,int requiredCloses,int &consecutive,double priorLow,double priorHigh,double candleOpen,double candleClose,double candleLow,double candleHigh){
+ if(state==WAIT_PULLBACK)return PullbackConfirmed(buy,zone,pullbackTolerance,priorLow,priorHigh,candleOpen,candleClose,candleLow,candleHigh)?2:0;
+ if(state==WAIT_BREAKOUT){consecutive=BeyondLevel(buy,candleClose,barrier,breakTolerance)?consecutive+1:0;return consecutive>=requiredCloses?1:0;}
+ if(state==WAIT_RETEST){if(BeyondLevel(!buy,candleClose,barrier,breakTolerance))return 3;return RetestConfirmed(buy,barrier,breakTolerance,candleOpen,candleClose,candleLow,candleHigh)?2:0;}
+ return 0;
+}
+bool OpportunityExpired(long elapsedBars,int maximumBars){return elapsedBars<0||elapsedBars>=maximumBars;}
+enum CounterfactualBarResult { CF_WAIT=0, CF_ENTRY_AMBIGUOUS=1, CF_STOP=2, CF_BOTH_STOP_FIRST=3, CF_TARGET=4, CF_HORIZON=5 };
+int CounterfactualBarDecision(bool buy,bool entryCandle,double lowPrice,double highPrice,double sl,double tp,bool horizon){
+ bool stop=buy?lowPrice<=sl:highPrice>=sl,target=buy?highPrice>=tp:lowPrice<=tp;
+ if(entryCandle&&(stop||target))return CF_ENTRY_AMBIGUOUS;
+ if(stop)return target?CF_BOTH_STOP_FIRST:CF_STOP;
+ if(target)return CF_TARGET;
+ return horizon?CF_HORIZON:CF_WAIT;
 }
 double TechnicalStop(bool buy,double entryPrice,double bid,double ask,double structureBid,double buffer,double atrDistance,double minimumDistance,double tickSize){
  double raw=buy?FSMin(structureBid-buffer,FSMin(entryPrice-atrDistance,bid-minimumDistance)):
