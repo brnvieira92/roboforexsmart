@@ -16,13 +16,13 @@ bool OpportunityActive(int i){return i>=0&&i<ArraySize(opportunities)&&opportuni
 void OpportunityTransition(int i,OpportunityState state,string reason){
  if(!OpportunityActive(i))return;
  opportunities[i].state=state;
- Journal("opportunity_state","opportunity="+opportunities[i].parent+" | strategy="+opportunities[i].strategy+" | symbol="+symbols[i]+" | state="+EnumToString(state)+" | reason="+reason+" | evaluations="+(string)opportunities[i].evaluations);
+ Journal("opportunity_state","opportunity="+opportunities[i].parent+" | strategy="+opportunities[i].strategy+" | symbol="+symbols[i]+" | state="+EnumToString(state)+" | reason="+reason+" | signal_tf="+EnumToString(SignalTimeframe())+" | wait_bars="+(string)ConfiguredWaitBars(symbols[i])+" | evaluations="+(string)opportunities[i].evaluations);
  if(state==INVALIDATED||state==EXPIRED||state==SUBMITTED||state==FILLED)opportunities[i].active=false;
 }
 bool TrendModuleContext(int i,bool buy){
  string s=symbols[i];ResearchConfig cfg=Config(s);
  if(!cfg.enabled||!ResearchSession()||!NewsClear(s))return false;
- double h=Value(research[i].h50,1),longEMA=Value(research[i].h200,1),adx=Value(research[i].adx,1),a=Value(atrHandles[i],1),base=Value(atrHandles[i],10);
+ double h=Value(research[i].h50,1),longEMA=Value(research[i].h200,1),adx=Value(research[i].adx,1),a=SignalATRValue(i,1),base=SignalATRValue(i,10);
  if(h==EMPTY_VALUE||longEMA==EMPTY_VALUE||adx==EMPTY_VALUE||a==EMPTY_VALUE||base==EMPTY_VALUE||a<=0||base<=0||adx<cfg.adx)return false;
  MarketRegime regime=DetectRegime(h,longEMA,adx,a/base,false);lastRegime=EnumToString(regime);
  if(regime!=TREND_UP&&regime!=TREND_DOWN&&regime!=BREAKOUT)return false;
@@ -31,7 +31,7 @@ bool TrendModuleContext(int i,bool buy){
 void ScheduleOpportunity(int i,bool buy,datetime bar,TechnicalPlan &p){
  if(!PlanUseEventWaits||StrategyMode!=MULTISTRATEGY||EntryPlanner!=TECHNICAL_PLAN||!EntrySession()||intentParent!="")return;
  // CHF_R01 already implements range reversal. Never convert a rejected trend to a range trade.
- if(lastStrategy=="CHF_R01"||lastPlanFailure==PLAN_FINAL||p.atrValue<=0||p.entry<=0)return;
+ if(StrategyID(symbols[i])=="CHF_R01"||lastPlanFailure==PLAN_FINAL||p.atrValue<=0||p.entry<=0)return;
  OpportunityState state=WAIT_PULLBACK;
  if((lastPlanFailure==PLAN_SPACE||lastPlanFailure==PLAN_NO_LEVEL)&&PlanEnableBreakRetest&&p.obstacle>0)state=WAIT_BREAKOUT;
  else if(!PlanEnableTrendPullback)return;
@@ -42,7 +42,7 @@ void ScheduleOpportunity(int i,bool buy,datetime bar,TechnicalPlan &p){
  opportunities[i].strategy=lastStrategy;opportunities[i].identity=Identity();opportunities[i].generation=authorizationGeneration;
  opportunities[i].zone=zone;opportunities[i].barrier=p.obstacle;opportunities[i].invalidationSL=p.sl;opportunities[i].atrValue=p.atrValue;
  if(p.sl<=0){
- MqlRates closed[];ArraySetAsSeries(closed,true);if(CopyRates(symbols[i],PERIOD_M5,1,2,closed)!=2){opportunities[i].active=false;return;}
+ MqlRates closed[];ArraySetAsSeries(closed,true);if(CopyRates(symbols[i],SignalTimeframe(),1,2,closed)!=2){opportunities[i].active=false;return;}
  PlanSettings settings=PlanConfig(symbols[i]);double buffer=MathMax(settings.bufferPips*PipSize(SymbolInfoDouble(symbols[i],SYMBOL_POINT),(int)SymbolInfoInteger(symbols[i],SYMBOL_DIGITS)),p.quoteAsk-p.quoteBid);
  opportunities[i].invalidationSL=buy?MathMin(closed[0].low,closed[1].low)-buffer:MathMax(closed[0].high,closed[1].high)+buffer+p.quoteAsk-p.quoteBid;
  }
@@ -63,7 +63,7 @@ bool PendingIntentStillValid(int i,bool retrying){
  if(intentParent!=""){
  if(!OpportunityActive(i))return false;
  MarketOpportunity o=opportunities[i];PlanSettings cfg=PlanConfig(symbols[i]);MqlTick q;
- if(o.identity!=Identity()||o.generation!=authorizationGeneration||OpportunityExpired(iBarShift(symbols[i],PERIOD_M5,o.originBar,true),cfg.waitBars)||!EntrySession()||!SymbolInfoTick(symbols[i],q)||(o.buy?q.bid<=o.invalidationSL:q.ask>=o.invalidationSL)){
+ if(o.identity!=Identity()||o.generation!=authorizationGeneration||OpportunityExpired(iBarShift(symbols[i],SignalTimeframe(),o.originBar,true),cfg.waitBars)||!EntrySession()||!SymbolInfoTick(symbols[i],q)||(o.buy?q.bid<=o.invalidationSL:q.ask>=o.invalidationSL)){
  OpportunityTransition(i,INVALIDATED,"original thesis/session/deadline changed during planning");return false;}
  }
  if(retrying){
@@ -79,7 +79,7 @@ bool RefreshPlanForSend(int i,datetime bar,TechnicalPlan &p,double intentEntry=0
  double originalEntry=intentEntry>0?intentEntry:p.entry,originalBudget=p.budget;int limit=MaxSpreadPoints;
  if(StrategyMode==MULTISTRATEGY){ResearchConfig cfg=Config(s);limit=MathMin(limit,cfg.spread);}
  for(int pass=0;pass<PlanSendRefreshAttempts;pass++){
- if(iTime(s,PERIOD_M5,0)!=bar){Reject("Envio: candle do sinal mudou | expected="+(string)(long)bar+" | actual="+(string)(long)iTime(s,PERIOD_M5,0));return false;}
+ if(iTime(s,SignalTimeframe(),0)!=bar){Reject("Envio: candle do sinal mudou | expected="+(string)(long)bar+" | actual="+(string)(long)iTime(s,SignalTimeframe(),0));return false;}
  int direction=0;double close=0,stop=0,target=0;
  bool signalValid=intentModule!=""?TrendModuleContext(i,p.buy):(ReadSignalForEntry(i,direction,close,stop,target)&&direction==(p.buy?1:-1)&&lastStrategy==p.strategy);
  if(!signalValid){Reject("Envio: sinal/contexto deixou de ser válido");return false;}
@@ -108,7 +108,7 @@ bool RefreshPlanForSend(int i,datetime bar,TechnicalPlan &p,double intentEntry=0
 bool FinalDispatchGuard(TechnicalPlan &p,datetime bar,bool report=true){
  MqlTick q;string s=p.symbol;double point=SymbolInfoDouble(s,SYMBOL_POINT),pip=PipSize(point,(int)SymbolInfoInteger(s,SYMBOL_DIGITS));
  int limit=MaxSpreadPoints;if(StrategyMode==MULTISTRATEGY){ResearchConfig cfg=Config(s);limit=MathMin(limit,cfg.spread);}
- if(iTime(s,PERIOD_M5,0)!=bar||!SymbolInfoTick(s,q)){if(report)Reject("Envio final: candle mudou ou cotação indisponível após persistência");return false;}
+ if(iTime(s,SignalTimeframe(),0)!=bar||!SymbolInfoTick(s,q)){if(report)Reject("Envio final: candle mudou ou cotação indisponível após persistência");return false;}
  double currentEntry=p.buy?q.ask:q.bid;double delta=MathAbs(currentEntry-p.entry);
  if(!QuoteWithinSendPolicy(p.entry,currentEntry,q.bid,q.ask,(double)(TimeTradeServer()-q.time),PlanSendMaxQuoteAgeSeconds,pip,PlanSendMaxDriftPips,point,limit)||delta>SlippageReservePoints*point+1e-12){
  if(report)Reject("Envio final: preço excedeu reserva após persistência | plan_entry="+DoubleToString(p.entry,8)+" | current="+DoubleToString(currentEntry,8)+" | delta_pts="+DoubleToString(delta/point,2)+" | reserve_pts="+(string)SlippageReservePoints+" | age_s="+(string)(long)(TimeTradeServer()-q.time));return false;}
@@ -146,8 +146,8 @@ void ProcessOpportunities(){
  EnsureOpportunities();
  for(int i=0;i<ArraySize(opportunities);i++){
  if(!OpportunityActive(i))continue;
- MarketOpportunity o=opportunities[i];string s=symbols[i];datetime bar=iTime(s,PERIOD_M5,0);PlanSettings cfg=PlanConfig(s);
- int elapsed=iBarShift(s,PERIOD_M5,o.originBar,true);
+ MarketOpportunity o=opportunities[i];string s=symbols[i];datetime bar=iTime(s,SignalTimeframe(),0);PlanSettings cfg=PlanConfig(s);
+ int elapsed=iBarShift(s,SignalTimeframe(),o.originBar,true);
  if(o.identity!=Identity()||o.generation!=authorizationGeneration||!PlanUseEventWaits||!EntrySession()||EntryPlanner!=TECHNICAL_PLAN){OpportunityTransition(i,INVALIDATED,"account/authorization/permissions/config changed");continue;}
  if(OpportunityExpired(elapsed,cfg.waitBars)){OpportunityTransition(i,EXPIRED,"candle deadline reached");continue;}
  MqlTick q;if(!SymbolInfoTick(s,q)||TimeTradeServer()-q.time>PlanSendMaxQuoteAgeSeconds)continue;
@@ -162,9 +162,9 @@ void ProcessOpportunities(){
  }else{
  if(bar==o.evaluatedBar)continue;
  if(!TrendModuleContext(i,o.buy)){OpportunityTransition(i,INVALIDATED,"trend/regime/calendar/session invalid");continue;}
- MqlRates r[];ArraySetAsSeries(r,true);if(CopyRates(s,PERIOD_M5,1,3,r)!=3||r[0].time+300!=bar)continue;
+ MqlRates r[];ArraySetAsSeries(r,true);if(CopyRates(s,SignalTimeframe(),1,3,r)!=3||r[0].time+SignalSeconds()!=bar)continue;
  opportunities[i].evaluatedBar=bar;
- if(bar-o.evaluatedBar!=300){opportunities[i].breakCloses=0;o.breakCloses=0;}
+ if(!ConsecutiveSignalBars((long)o.evaluatedBar,(long)bar,SignalSeconds())){opportunities[i].breakCloses=0;o.breakCloses=0;}
  double tolerance=MathMax(o.atrValue*PlanBreakBufferATR,q.ask-q.bid);
  if(o.state==WAIT_PULLBACK&&!PlanEnableTrendPullback){OpportunityTransition(i,INVALIDATED,"pullback module disabled");continue;}
  if((o.state==WAIT_BREAKOUT||o.state==WAIT_RETEST)&&!PlanEnableBreakRetest){OpportunityTransition(i,INVALIDATED,"break/retest module disabled");continue;}
@@ -176,9 +176,9 @@ void ProcessOpportunities(){
  if(event==1){opportunities[i].breakoutBar=r[0].time;OpportunityTransition(i,WAIT_RETEST,"consecutive closed candles beyond frozen obstacle");continue;}
  if(event==3){OpportunityTransition(i,INVALIDATED,"confirmed breakout failed");continue;}
  module=o.state==WAIT_PULLBACK?"TREND_PULLBACK":"BREAK_RETEST";
- ResearchConfig economics=Config(s);close=r[0].close;stop=Value(atrHandles[i],1)*economics.stopATR;target=stop*economics.reward;
+ ResearchConfig economics=Config(s);close=r[0].close;stop=SignalATRValue(i,1)*economics.stopATR;target=stop*economics.reward;
  string prefix=StringFind(s,"USDJPY")==0?"JPY":StringFind(s,"USDCHF")==0?"CHF":StringSubstr(s,0,3);
- lastStrategy=prefix+ (module=="TREND_PULLBACK"?"_P01":"_BR01");
+ lastStrategy=TempoStrategyID(prefix+(module=="TREND_PULLBACK"?"_P01":"_BR01"));
  }
  if(opportunities[i].evaluations>=2){OpportunityTransition(i,EXPIRED,"maximum two economic evaluations after confirmation");continue;}
  opportunities[i].evaluations++;

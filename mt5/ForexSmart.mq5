@@ -1,5 +1,5 @@
 #property strict
-#property version "2.15"
+#property version "2.16"
 #property description "Forex Smart | smartTrade | Demo validation required"
 #include <Trade/Trade.mqh>
 #include "Include/ForexSmartTelegram.mqh"
@@ -15,6 +15,8 @@ input double DailyLossPercent=2.0;
 input bool PushNotifications=false;
 input bool TelegramNotifications=false;
 input StrategySelection StrategyMode=LEGACY;
+input EntryTempoSelection EntryTempo=STANDARD_M5;
+input int PatientWaitBars=8;
 input bool TesterAuthorizeSession=false; // Applies only inside Strategy Tester; ignored in a connected account.
 input bool EnableEUR_T01=false;
 input bool EnableJPY_B01=false;
@@ -101,6 +103,8 @@ string latest="Inicializando";
 string activePlanID="";
 string intentParent="",intentModule="";
 int lastEntryOutcome=0; // 0=no send, 1=committed, 2=submitted, 3=filled
+ENUM_TIMEFRAMES SignalTimeframe(){return EntryTempo==PATIENT_M15?PERIOD_M15:PERIOD_M5;}
+int SignalSeconds(){return SignalPeriodMinutes((int)EntryTempo)*60;}
 void ResetCounterfactuals();
 void ResetOpportunities();
 void ResetSpaceRechecks();
@@ -279,7 +283,7 @@ void AttemptSignalEntry(int i,bool buy,datetime bar,double signalClose,double st
 void Scan(int i){
  activePlanID="";string s=symbols[i];bool configured=false;
  for(int j=0;j<ArraySize(entrySymbols);j++)if(s==entrySymbols[j])configured=true;if(!configured)return;
- datetime bar=iTime(s,PERIOD_M5,0);if(bar==0||bar==lastbar[i])return;
+ datetime bar=iTime(s,SignalTimeframe(),0);if(!NewSignalBar((long)bar,(long)lastbar[i]))return;
  if(OpportunityActive(i)){lastbar[i]=bar;GlobalVariableSet(BarKey(s),bar);return;}
  int direction=0;double signalClose=0,stop=0,target=0;
  if(!ReadSignalForEntry(i,direction,signalClose,stop,target))return;
@@ -289,7 +293,7 @@ void Scan(int i){
  double point=SymbolInfoDouble(s,SYMBOL_POINT);int spreadLimit=MaxSpreadPoints;
  if(StrategyMode==MULTISTRATEGY){ResearchConfig cfg=Config(s);spreadLimit=MathMin(spreadLimit,cfg.spread);}
  string opportunity=s+"/"+lastStrategy+"/"+(string)(long)bar;
- Journal("opportunity_new","opportunity="+opportunity+" | strategy="+lastStrategy+" | symbol="+s);
+ Journal("opportunity_new","opportunity="+opportunity+" | strategy="+lastStrategy+" | symbol="+s+" | signal_tf="+EnumToString(SignalTimeframe())+" | tempo="+EnumToString(EntryTempo));
  Journal("signal",side+" "+s);
  if(point<=0||(initialTick.ask-initialTick.bid)/point>spreadLimit){Reject("Spread máximo: "+s);ScheduleSpreadWait(i,buy,bar,signalClose);return;}
  Notify("Sinal em avaliação "+side+" "+s,lastStrategy);
@@ -342,7 +346,7 @@ void OnTimer(){
  ObjectSetString(0,"FS.arm",OBJPROP_TEXT,(sessionState.authorized?"DESARMAR ":"ATIVAR ")+AccountKind());
  ObjectSetInteger(0,"FS.arm",OBJPROP_BGCOLOR,sessionState.authorized&&AccountKind()=="REAL"?clrRed:clrDarkGreen);
  int wins,losses;double net;Metrics(wins,losses,net);
- Comment("smartTrade | FOREX SMART | ",AccountKind()," | ",ModeName()," | Plan: ",EntryPlanner==TECHNICAL_PLAN?"TECHNICAL":"PREVIOUS","\nSessão: ",sessionState.authorized?"AUTORIZADA":"DESARMADA",emergencyStop?" | EMERGÊNCIA":"","\nModo: ",AutoTrade?"Automático":"Alertas",entriesPaused?" | PAUSADO":"",LossLimit()?" | Limite diário":"",
+ Comment("smartTrade | FOREX SMART | ",AccountKind()," | ",ModeName()," | Tempo: ",EnumToString(EntryTempo)," | Sinal: ",EnumToString(SignalTimeframe())," | Plan: ",EntryPlanner==TECHNICAL_PLAN?"TECHNICAL":"PREVIOUS","\nSessão: ",sessionState.authorized?"AUTORIZADA":"DESARMADA",emergencyStop?" | EMERGÊNCIA":"","\nModo: ",AutoTrade?"Automático":"Alertas",entriesPaused?" | PAUSADO":"",LossLimit()?" | Limite diário":"",
  "\nSaldo: ",DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE),2)," | Equity: ",DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY),2),
  "\nRisco %: ",RiskPercent," | Agregado estimado: ",DoubleToString(AggregateRisk(),2)," | Dia: ",DoubleToString(RelevantEquity()-dayEquity,2),
  "\nRegime: ",lastRegime," | Estratégia: ",lastStrategy," | Última rejeição: ",lastReject,

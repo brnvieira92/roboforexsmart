@@ -1,17 +1,17 @@
 {
-  "version": "2.15",
+  "version": "2.16",
   "files": {
-    "ForexSmart.mq5": "5c7d2530904e7ef4c3ac068e81db590555033ec9be44b00b47f7f0a6a859b540",
-    "Include/ForexSmartAccount.mqh": "a226720136c7e2e587ae0f7380f39bcd0e7c044ce97cd01cfd14a96b1f4f6236",
+    "ForexSmart.mq5": "371103b2a567caf5b122f1cd2b4bfdec7a012594e5836b0913c31202f9219d63",
+    "Include/ForexSmartAccount.mqh": "51e06ef3a4c104b8a83a526de3eb809cbec519c00dbb3387422d6dd50ad01fa4",
     "Include/ForexSmartCashTarget.mqh": "b4e92fc98a962354cb1c8022a22a221036e2cfb7763bf366ed5b040099734b20",
     "Include/ForexSmartCore.mqh": "a1760785f5e6faab21fd6d7bb219d96eb81ef32d2f7f50ea0ade873954917604",
-    "Include/ForexSmartCounterfactual.mqh": "8289d7b13422ff974f4b667469781d0b2ac2f72609925da83805386d4421e7cb",
-    "Include/ForexSmartOpportunity.mqh": "15c7f95a80c8172423ebbc363263eafded05b777528dc61a9a5046ae2f13e9c7",
-    "Include/ForexSmartPlanMath.mqh": "10a7aef4a4b1be6b85b027a5d7695a616bad61c0d74fe6fa078a1e32f2ccab0e",
-    "Include/ForexSmartPlanner.mqh": "b15e0e126180c26491845f31fba162b5b292eac4eaed7ef316dea0ba61becaee",
-    "Include/ForexSmartRecheck.mqh": "d6a76733bf87ab8dc3ec78561fbe18247e668e85a2358d696e034e1bae67e1b4",
+    "Include/ForexSmartCounterfactual.mqh": "6508603a46f3999e3920c782419841189374eb92e1bc694d484f2bb1c646219d",
+    "Include/ForexSmartOpportunity.mqh": "6b2c36981aa5b44e9c68ed23c7f785d5b9b519957b7d6bf2c36cad2c36e2d032",
+    "Include/ForexSmartPlanMath.mqh": "70cd6d27562ebe9999f40aa82e503da338ea85d33699a05b0cde1f45e698fc49",
+    "Include/ForexSmartPlanner.mqh": "2943cfd042be0134a4ab04ffe4dfad483f5e0f1396b508947375582e782d254a",
+    "Include/ForexSmartRecheck.mqh": "dae2a1d5a322ddf042c9befc6a5e27d7acec4c19da522630b9beb02c2e4e470a",
     "Include/ForexSmartRecovery.mqh": "832faee23782180b46503a61f23890d04e33b350c03b3e6d432fbbf9c608f7ec",
-    "Include/ForexSmartResearch.mqh": "37d615f43f60cdda26fe4ac798f891187dfeda37b79da4f80cd67e558a34edf7",
+    "Include/ForexSmartResearch.mqh": "a3fc26a8eb1603b6f1a4fbf69b548db49313c61597f1928383796839422545f5",
     "Include/ForexSmartRisk.mqh": "4fa5868ff6be639eac979a35c0357f8a4de5f3d80e6d5d647ff9df8f9935f8c0",
     "Include/ForexSmartTelegram.mqh": "1e3ada8d6a0df6a28b82f9ab1381be1f22aa81c6b9ed13d735229c2a145d9b66"
   }

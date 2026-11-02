@@ -171,3 +171,14 @@ g++ -std=c++17 -Wall -Wextra -Werror tests/native/test_cash_target.cpp -o /tmp/f
 ```
 
 Nenhuma compilação completa MQL, backtest ou operação demo/real foi realizada. O objetivo5USD é líquido estimado, sujeito ao tick e à execução, não garantia de lucro.
+
+
+## v2.16
+
+[Modo paciente](PATIENT_MODE.md): 18 testes Python e cinco harnesses C++ passaram.
+
+```bash
+g++ -std=c++17 -Wall -Wextra -Werror tests/native/test_patient.cpp -o /tmp/fs-patient && /tmp/fs-patient
+```
+
+A alteração cobre timeframe de sinal/indicadores/estrutura/reconfirmação/expiração e preserva IDs/gestão anteriores. O teste de política cobre ticks nas fronteiras M5 dentro do M15, prazo8 e gaps; testes de recuperação verificam bijeção e estabilidade dos códigos. Nenhum desses testes executa o terminal MT5; compilação MQL, backtest de carteira e desempenho permanecem não medidos.

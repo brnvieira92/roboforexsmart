@@ -20,9 +20,10 @@ void ScheduleSpaceRecheck(int i,bool buy,datetime bar,double invalidationSL){
  Journal("recheck_scheduled","symbol="+symbols[i]+" | strategy="+lastStrategy+" | bar="+(string)(long)bar+" | interval_seconds="+(string)PlanRecheckIntervalSeconds+" | lifetime_seconds="+(string)PlanRecheckLifetimeSeconds+" | max_additional_checks="+(string)PlanRecheckMaxAttempts+" | no_order_submitted=1");
 }
 bool ReadSignalForEntry(int i,int &direction,double &signalClose,double &stop,double &target){
- double f=Value(fastHandles[i],1),slo=Value(slowHandles[i],1),a=Value(atrHandles[i],1);
- if(f==EMPTY_VALUE||slo==EMPTY_VALUE||a==EMPTY_VALUE||a<=0)return false;
- MqlRates rates[];ArraySetAsSeries(rates,true);if(CopyRates(symbols[i],PERIOD_M5,1,3,rates)!=3||rates[0].time+300!=iTime(symbols[i],PERIOD_M5,0))return false;
+ double f=0,slo=0,a=SignalATRValue(i,1);
+ if(a==EMPTY_VALUE||a<=0)return false;
+ if(EntryTempo==STANDARD_M5){f=Value(fastHandles[i],1);slo=Value(slowHandles[i],1);if(f==EMPTY_VALUE||slo==EMPTY_VALUE)return false;}
+ MqlRates rates[];ArraySetAsSeries(rates,true);if(CopyRates(symbols[i],SignalTimeframe(),1,3,rates)!=3||rates[0].time+SignalSeconds()!=iTime(symbols[i],SignalTimeframe(),0))return false;
  lastStrategy="LEGACY";lastRegime="LEGACY";signalClose=rates[0].close;
  direction=LegacyDirection(f,slo,rates[1].close,rates[0].close);
  stop=LegacyStop(a);target=LegacyTarget(a,SymbolInfoDouble(symbols[i],SYMBOL_POINT),f,slo,MinTPPoints,MaxTPPoints);
@@ -36,7 +37,7 @@ void ProcessSpaceRechecks(){
  for(int i=0;i<ArraySize(spaceRechecks);i++){
  if(!spaceRechecks[i].active)continue;
  bool sameAccount=spaceRechecks[i].identity==Identity();bool sameSession=spaceRechecks[i].generation==authorizationGeneration;
- bool sameBar=iTime(symbols[i],PERIOD_M5,0)==spaceRechecks[i].bar;
+ bool sameBar=iTime(symbols[i],SignalTimeframe(),0)==spaceRechecks[i].bar;
  int decision=RetryDecision(sameAccount,sameSession,EntrySession()&&PlanEnableSpaceRecheck&&EntryPlanner==TECHNICAL_PLAN,sameBar,true,AlreadyDispatched(symbols[i],spaceRechecks[i].bar),spaceRechecks[i].attempts,PlanRecheckMaxAttempts,(long)(TimeTradeServer()-spaceRechecks[i].born),(long)(TimeTradeServer()-spaceRechecks[i].checked),PlanRecheckIntervalSeconds,PlanRecheckLifetimeSeconds);
  if(decision==0){CancelSpaceRecheck(i,"account/session/permissions/bar/expiry/limit/dispatch changed");continue;}
  if(decision==1)continue;

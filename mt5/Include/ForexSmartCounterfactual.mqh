@@ -11,8 +11,8 @@ void TrackRejectedPlan(TechnicalPlan &p){
  int index=-1;for(int j=0;j<ArraySize(rejectedObservations);j++)if(!rejectedObservations[j].active){index=j;break;}
  if(index<0){index=ArraySize(rejectedObservations);if(index>=64){Journal("counterfactual_skipped","plan="+p.id+" | bounded_capacity=64");return;}ArrayResize(rejectedObservations,index+1);}
  ZeroMemory(rejectedObservations[index]);rejectedObservations[index].active=true;rejectedObservations[index].plan=p;
- rejectedObservations[index].signalBar=iTime(p.symbol,PERIOD_M5,0);
- Journal("counterfactual_start","plan="+p.id+" | strategy="+p.strategy+" | symbol="+p.symbol+" | horizon_M5_bars="+(string)PlanCounterfactualHorizonBars+" | rule=FIXED_SL_TP_STOP_FIRST | execution_assumed=1 | not_executed_exit_policy=1 | not_portfolio_backtest=1");
+ rejectedObservations[index].signalBar=iTime(p.symbol,(ENUM_TIMEFRAMES)p.signalTimeframe,0);
+ Journal("counterfactual_start","plan="+p.id+" | strategy="+p.strategy+" | symbol="+p.symbol+" | horizon_signal_bars="+(string)PlanCounterfactualHorizonBars+" | signal_tf="+EnumToString((ENUM_TIMEFRAMES)p.signalTimeframe)+" | rule=FIXED_SL_TP_STOP_FIRST | execution_assumed=1 | not_executed_exit_policy=1 | not_portfolio_backtest=1");
 }
 void EndCounterfactual(int index,string outcome,double exitPrice,bool measurable){
  TechnicalPlan p=rejectedObservations[index].plan;double gross=0;
@@ -25,11 +25,11 @@ void ProcessCounterfactuals(){
  for(int i=0;i<ArraySize(rejectedObservations);i++){
  if(!rejectedObservations[i].active)continue;
  TechnicalPlan p=rejectedObservations[i].plan;
- MqlRates r[];ArraySetAsSeries(r,false);datetime start=rejectedObservations[i].observedBar>0?rejectedObservations[i].observedBar+300:rejectedObservations[i].signalBar;
- datetime end=iTime(p.symbol,PERIOD_M5,0)-1;if(end<start)continue;
- int copied=CopyRates(p.symbol,PERIOD_M5,start,end,r);if(copied<=0)continue;
+ MqlRates r[];ArraySetAsSeries(r,false);datetime start=rejectedObservations[i].observedBar>0?rejectedObservations[i].observedBar+PeriodSeconds((ENUM_TIMEFRAMES)p.signalTimeframe):rejectedObservations[i].signalBar;
+ datetime end=iTime(p.symbol,(ENUM_TIMEFRAMES)p.signalTimeframe,0)-1;if(end<start)continue;
+ int copied=CopyRates(p.symbol,(ENUM_TIMEFRAMES)p.signalTimeframe,start,end,r);if(copied<=0)continue;
  for(int j=0;j<copied&&rejectedObservations[i].active;j++){
- if(r[j].time!=start+(datetime)(j*300)){EndCounterfactual(i,"INCOMPLETE_CANDLE_PATH",0,false);break;}
+ if(r[j].time!=start+(datetime)(j*PeriodSeconds((ENUM_TIMEFRAMES)p.signalTimeframe))){EndCounterfactual(i,"INCOMPLETE_CANDLE_PATH",0,false);break;}
  rejectedObservations[i].observedBar=r[j].time;rejectedObservations[i].bars++;
  // Bid candles: sell exits need Ask. Freeze observed spread; cannot infer historical spread path.
  double spread=p.quoteAsk-p.quoteBid,lo=r[j].low+(p.buy?0:spread),hi=r[j].high+(p.buy?0:spread);

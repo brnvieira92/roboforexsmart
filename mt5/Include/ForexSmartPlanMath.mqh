@@ -6,6 +6,11 @@
 #else
 #define FS_PLAN_ARRAY(name) const double &name[]
 #endif
+enum EntryTempoSelection { STANDARD_M5=0, PATIENT_M15=1 };
+bool NewSignalBar(long current,long previous){return current>0&&current!=previous;}
+int SignalPeriodMinutes(int tempo){return tempo==PATIENT_M15?15:5;}
+int EffectiveWaitBars(int tempo,int standardBars,int patientBars){return tempo==PATIENT_M15?patientBars:standardBars;}
+bool ConsecutiveSignalBars(long previousBar,long currentBar,int seconds){return seconds>0&&currentBar-previousBar==seconds;}
 enum EntryPlannerSelection { PREVIOUS_PLAN=0, TECHNICAL_PLAN=1 };
 enum TargetAmountPolicy { STRUCTURAL_TARGET=0, FIXED_NET_USD=1 };
 double CashRiskBudget(double configured,double goal,double minimumRR){return configured>0&&goal>0&&minimumRR>=1?FSMin(configured,goal/minimumRR):0;}

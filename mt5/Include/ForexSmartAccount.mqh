@@ -13,7 +13,7 @@ string Identity(){return (string)AccountInfoInteger(ACCOUNT_LOGIN)+"|"+AccountIn
 ulong TextFingerprint(string server){ulong hash=1469598103934665603;for(int i=0;i<StringLen(server);i++){hash^=(ulong)StringGetCharacter(server,i);hash*=1099511628211;}return hash;}
 ulong ServerFingerprint(){return TextFingerprint(AccountInfoString(ACCOUNT_SERVER));}
 string ServerHash(){return StringFormat("%I64X",ServerFingerprint());}
-string BarKey(string symbol){return StateKey("b."+StringFormat("%I64X",TextFingerprint(symbol)));}
+string BarKey(string symbol){return StateKey((EntryTempo==PATIENT_M15?"b15.":"b.")+StringFormat("%I64X",TextFingerprint(symbol)));}
 string StateKey(string suffix){return "FS2."+accountScope+"."+suffix;}
 string ModeName(){return StrategyMode==LEGACY?"LEGACY":"MULTISTRATEGY";}
 void ResetTelegramAccount(){ArrayResize(TgMessages,0);ArrayResize(TgAttempts,0);ArrayResize(TgCreated,0);}
