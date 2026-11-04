@@ -15,6 +15,8 @@ git pull --ff-only origin development/safe-multistrategy
 py tools\install_mt5.py "CAMINHO DA PASTA DE DADOS DO MT5"
 ```
 
+O instalador aceita a conversão de finais de linha LF/CRLF do Windows, mantendo a verificação do conteúdo por hash. Alterações reais de código continuam sendo recusadas.
+
 O instalador confere as **cinco fontes**, faz backup, retira os includes aposentados e guarda/remove o `.ex5` antigo para evitar executar a versão errada. Não compila. Abra `MQL5\Experts\ForexSmart.mq5` no MetaEditor, pressione **F7** e confira v3.00 e zero erros. Compilação completa MQL5 não foi executada no ambiente Linux desta entrega.
 
 3. Deixe o MT5 aberto e conectado à sua **conta demo USD**, com histórico M15 dos quatro pares carregado. No PowerShell do projeto:

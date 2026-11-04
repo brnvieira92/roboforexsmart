@@ -1,0 +1,5 @@
+# Source digests use LF on every platform. Installer also accepts existing CRLF checkouts.
+*.mq5 text eol=lf
+*.mqh text eol=lf
+*.py text eol=lf
+*.json text eol=lf

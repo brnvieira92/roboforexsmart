@@ -26,7 +26,12 @@ def verified_sources(bundle=BUNDLE):
             raise ValueError('Unsafe manifest path')
         content = (bundle / path).read_bytes()
         if hashlib.sha256(content).hexdigest() != digest:
-            raise ValueError(f'Bundle mismatch: {relative}; update the whole Git checkout')
+            # Windows Git/MetaEditor can convert LF to CRLF without changing code.
+            # Accept only that exact transformation, still against the trusted digest.
+            normalized = content.replace(b'\r\n', b'\n')
+            if hashlib.sha256(normalized).hexdigest() != digest:
+                raise ValueError(f'Bundle mismatch: {relative}; source differs beyond LF/CRLF. Check git status/diff and update the whole checkout; do not discard local edits blindly')
+            content = normalized
         sources[path] = content
     return manifest['version'], sources
 

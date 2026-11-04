@@ -45,3 +45,28 @@ class InstallTests(unittest.TestCase):
             self.assertFalse(old.exists()); self.assertFalse(compiled.exists())
             self.assertEqual((backup/'Include'/'ForexSmartResearch.mqh').read_text(),'legacy')
             self.assertEqual((backup/'ForexSmart.ex5').read_bytes(),b'old executable')
+
+    def test_windows_crlf_checkout_installs_verified_sources(self):
+        import shutil
+        with tempfile.TemporaryDirectory() as folder:
+            folder=Path(folder); bundle=folder/'bundle';shutil.copytree(BUNDLE,bundle)
+            for relative,content in verified_sources()[1].items():
+                (bundle/relative).write_bytes(content.replace(b'\n',b'\r\n'))
+            data=folder/'terminal';(data/'MQL5').mkdir(parents=True)
+            version,count,_=install(data,bundle)
+            self.assertEqual((version,count),('3.00',5))
+            for relative,content in verified_sources()[1].items():
+                self.assertEqual((data/'MQL5'/'Experts'/relative).read_bytes(),content)
+
+    def test_crlf_does_not_hide_changed_code_or_modify_destination(self):
+        import shutil
+        with tempfile.TemporaryDirectory() as folder:
+            folder=Path(folder);bundle=folder/'bundle';shutil.copytree(BUNDLE,bundle)
+            source=bundle/'ForexSmart.mq5'
+            source.write_bytes(source.read_bytes().replace(b'AutoTrade=false',b'AutoTrade=true').replace(b'\n',b'\r\n'))
+            data=folder/'terminal';experts=data/'MQL5'/'Experts';experts.mkdir(parents=True)
+            current=experts/'ForexSmart.ex5';current.write_bytes(b'keep this executable')
+            with self.assertRaisesRegex(ValueError,'differs beyond LF/CRLF'):
+                install(data,bundle)
+            self.assertEqual(current.read_bytes(),b'keep this executable')
+            self.assertFalse((data/'ForexSmart-backups').exists())
