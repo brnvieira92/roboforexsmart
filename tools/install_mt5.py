@@ -39,18 +39,24 @@ def install(data_folder, bundle=BUNDLE):
     target = data_folder / 'MQL5' / 'Experts'
     backup = data_folder / 'ForexSmart-backups' / datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
     backup.mkdir(parents=True, exist_ok=False)
+    manifest = json.loads((Path(bundle) / 'manifest.json').read_text(encoding='utf-8'))
+    retired = [Path(p) for p in manifest.get('retired', [])]
+    for relative in retired:
+        if relative.is_absolute() or '..' in relative.parts or relative in sources:
+            raise ValueError('Unsafe retired source path')
+    # Retire only named project modules and the backed-up old executable; no user data.
+    affected = [*sources, *retired, Path('ForexSmart.ex5')]
     originals = {}
-    for relative in sources:
+    for relative in affected:
         destination = target / relative
         originals[relative] = destination.read_bytes() if destination.exists() else None
         if destination.exists():
             saved = backup / relative
             saved.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(destination, saved)
-    compiled = target / 'ForexSmart.ex5'
-    if compiled.exists():
-        shutil.copy2(compiled, backup / compiled.name)
     try:
+        for relative in [*retired, Path('ForexSmart.ex5')]:
+            (target / relative).unlink(missing_ok=True)
         for relative, content in sources.items():
             destination = target / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -76,4 +82,4 @@ if __name__ == '__main__':
     version, count, backup = install(args.data_folder)
     print(f'Installed verified source bundle v{version}: {count} files.')
     print(f'Backup: {backup}')
-    print('Compile MQL5/Experts/ForexSmart.mq5 with F7. Compilation was NOT performed.')
+    print('Old compiled EA was backed up and removed. Compile MQL5/Experts/ForexSmart.mq5 with F7. Compilation was NOT performed.')

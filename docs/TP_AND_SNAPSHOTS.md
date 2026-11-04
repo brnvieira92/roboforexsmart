@@ -1,3 +1,5 @@
+> Documento histórico da versão2.x, aposentada. Para a versão ativa3.00, use [ML + price action](ML_PRICE_ACTION.md).
+
 # v2.12 — extensão condicional de TP e controle de snapshots
 
 ## Evidência analisada

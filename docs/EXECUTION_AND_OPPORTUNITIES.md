@@ -1,3 +1,5 @@
+> Documento histórico da versão2.x, aposentada. Para a versão ativa3.00, use [ML + price action](ML_PRICE_ACTION.md).
+
 # Forex Smart v2.14 — execução e oportunidades em espera
 
 Implementação incremental na branch `development/safe-multistrategy`; main preservada. Nenhuma ordem enviada nesta tarefa. Pacote: EA + 11 includes, 12 fontes verificadas pelo instalador. Requer compilação e validação no MT5 antes de qualquer teste operacional. Não há evidência de vantagem estatística dos módulos novos.

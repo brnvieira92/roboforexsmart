@@ -1,3 +1,5 @@
+> Histórico de validações até v2.16. Para a versão ativa3.00, consulte [ML + price action](ML_PRICE_ACTION.md).
+
 # v2.00 — auditoria, entrega incremental e validação
 
 ## Estado desta entrega

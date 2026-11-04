@@ -1,18 +1,23 @@
 {
-  "version": "2.16",
+  "version": "3.00",
   "files": {
-    "ForexSmart.mq5": "371103b2a567caf5b122f1cd2b4bfdec7a012594e5836b0913c31202f9219d63",
-    "Include/ForexSmartAccount.mqh": "51e06ef3a4c104b8a83a526de3eb809cbec519c00dbb3387422d6dd50ad01fa4",
-    "Include/ForexSmartCashTarget.mqh": "b4e92fc98a962354cb1c8022a22a221036e2cfb7763bf366ed5b040099734b20",
-    "Include/ForexSmartCore.mqh": "a1760785f5e6faab21fd6d7bb219d96eb81ef32d2f7f50ea0ade873954917604",
-    "Include/ForexSmartCounterfactual.mqh": "6508603a46f3999e3920c782419841189374eb92e1bc694d484f2bb1c646219d",
-    "Include/ForexSmartOpportunity.mqh": "6b2c36981aa5b44e9c68ed23c7f785d5b9b519957b7d6bf2c36cad2c36e2d032",
-    "Include/ForexSmartPlanMath.mqh": "70cd6d27562ebe9999f40aa82e503da338ea85d33699a05b0cde1f45e698fc49",
-    "Include/ForexSmartPlanner.mqh": "2943cfd042be0134a4ab04ffe4dfad483f5e0f1396b508947375582e782d254a",
-    "Include/ForexSmartRecheck.mqh": "dae2a1d5a322ddf042c9befc6a5e27d7acec4c19da522630b9beb02c2e4e470a",
-    "Include/ForexSmartRecovery.mqh": "832faee23782180b46503a61f23890d04e33b350c03b3e6d432fbbf9c608f7ec",
-    "Include/ForexSmartResearch.mqh": "a3fc26a8eb1603b6f1a4fbf69b548db49313c61597f1928383796839422545f5",
-    "Include/ForexSmartRisk.mqh": "4fa5868ff6be639eac979a35c0357f8a4de5f3d80e6d5d647ff9df8f9935f8c0",
+    "ForexSmart.mq5": "a9dfa612fd0af9bd7828fcde498f4a0ea98477fafef979371f03d22e3924a37d",
+    "Include/ForexSmartMLMath.mqh": "b9f5a2e2c9e4cb4c35e82078b7a028ee5c00dcfb7bf728371adc1455e22f0519",
+    "Include/ForexSmartMLModel.mqh": "c07be8f16b099ab2a854483fffd7354963cab8ae25172fa8e1ed2dbe5b1a3013",
+    "Include/ForexSmartMLRuntime.mqh": "bd83f73f595a47c7be1e1d41aa888594b39220f862363ffe785121377032a2b9",
     "Include/ForexSmartTelegram.mqh": "1e3ada8d6a0df6a28b82f9ab1381be1f22aa81c6b9ed13d735229c2a145d9b66"
-  }
+  },
+  "retired": [
+    "Include/ForexSmartAccount.mqh",
+    "Include/ForexSmartCashTarget.mqh",
+    "Include/ForexSmartCore.mqh",
+    "Include/ForexSmartCounterfactual.mqh",
+    "Include/ForexSmartOpportunity.mqh",
+    "Include/ForexSmartPlanMath.mqh",
+    "Include/ForexSmartPlanner.mqh",
+    "Include/ForexSmartRecheck.mqh",
+    "Include/ForexSmartRecovery.mqh",
+    "Include/ForexSmartResearch.mqh",
+    "Include/ForexSmartRisk.mqh"
+  ]
 }

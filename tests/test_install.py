@@ -16,7 +16,7 @@ class InstallTests(unittest.TestCase):
             credentials.parent.mkdir()
             credentials.write_text('local-test-placeholder')
             version, count, backup = install(data)
-            self.assertEqual((version, count), ('2.16', 13))
+            self.assertEqual((version, count), ('3.00', 5))
             self.assertEqual((backup / 'ForexSmart.mq5').read_text(), 'old user file')
             self.assertEqual(credentials.read_text(), 'local-test-placeholder')
             for relative, content in verified_sources()[1].items():
@@ -27,7 +27,7 @@ class InstallTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             bundle = Path(folder) / 'bundle'
             shutil.copytree(BUNDLE, bundle)
-            (bundle / 'Include' / 'ForexSmartAccount.mqh').write_text('outdated')
+            (bundle / 'Include' / 'ForexSmartMLRuntime.mqh').write_text('outdated')
             with self.assertRaises(ValueError):
                 verified_sources(bundle)
 
@@ -36,10 +36,12 @@ class InstallTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 install(folder)
 
-    def test_stale_global_handle_names_absent(self):
-        import re
-        for relative, content in verified_sources()[1].items():
-            if relative.name == 'ForexSmartCore.mqh':
-                continue
-            source = content.decode('utf-8')
-            self.assertIsNone(re.search(r'\b(?:fast|slow|atr|paused)\b', source), str(relative))
+    def test_retired_modules_and_executable_are_backed_up(self):
+        with tempfile.TemporaryDirectory() as folder:
+            data=Path(folder); experts=data/'MQL5'/'Experts'; (experts/'Include').mkdir(parents=True)
+            old=experts/'Include'/'ForexSmartResearch.mqh'; old.write_text('legacy')
+            compiled=experts/'ForexSmart.ex5'; compiled.write_bytes(b'old executable')
+            _,_,backup=install(data)
+            self.assertFalse(old.exists()); self.assertFalse(compiled.exists())
+            self.assertEqual((backup/'Include'/'ForexSmartResearch.mqh').read_text(),'legacy')
+            self.assertEqual((backup/'ForexSmart.ex5').read_bytes(),b'old executable')

@@ -6,3 +6,8 @@ __pycache__/
 # Local Telegram credentials and terminal parameter exports
 ForexSmart-telegram.txt
 *.set
+
+# Broker data and locally trained ML artifacts (never commit credentials/model guesses)
+data/
+artifacts/
+ForexSmart-ml-model.csv

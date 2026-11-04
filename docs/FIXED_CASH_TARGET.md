@@ -1,3 +1,5 @@
+> Documento histórico da versão2.x, aposentada. Para a versão ativa3.00, use [ML + price action](ML_PRICE_ACTION.md).
+
 # v2.15 — TP em US$ líquidos estimados e stop estrutural
 
 Modo opcional, sem mudar as estratégias que encontram sinais. `PlanTargetMode=STRUCTURAL_TARGET` preserva o comportamento anterior. Para uma posição nova com alvo monetário:

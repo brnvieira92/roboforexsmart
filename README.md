@@ -1,143 +1,86 @@
-# smartTrade — Forex Smart
+# Forex Smart 3.00 — uma estratégia: ML + price action
 
-Versão da branch de desenvolvimento: **v2.16**. Novo planejamento técnico **opcional e ainda sem validação no MT5**, com rollback por `EntryPlanner=PREVIOUS_PLAN` (padrão). Leia primeiro [planejamento técnico, evidências, parâmetros e validação](docs/TECHNICAL_PLANNER.md).
+A branch `development/safe-multistrategy` agora contém **uma única estratégia ativa**, `ML_PA_V1`, com **seis inputs**. Os módulos LEGACY, multistrategy, planner, TP monetário rígido e filas antigas foram retirados. O histórico Git preserva o rollback da v2.16 (`3d9b9b9`).
 
-V2.14: [correção de envio, esperas por eventos, módulos opcionais, funil e teste por ablação](docs/EXECUTION_AND_OPPORTUNITIES.md). [Auditoria do CSV enviado em 02/11](docs/reports/2026-11-02-audit.md).
+O sistema treina um classificador real com candles do seu MT5 e exige evidência fora da amostra. **Nenhum modelo lucrativo foi demonstrado ou embarcado nesta entrega.** Sem modelo qualificado, o painel mostra **SEM MODELO** e não envia ordens. Não é uma regra fixa disfarçada de machine learning.
 
-V2.15: [TP em US$ líquidos estimados com stop em estrutura confirmada](docs/FIXED_CASH_TARGET.md). Modo opcional `PlanTargetMode=FIXED_NET_USD`, `PlanNetProfitUSD=5`. Preserva obstáculos/R:R; reduz lote/orçamento e pode recusar a entrada. Sem parcial/trailing nesse modo.
+## Atualizar e preparar no Windows
 
-V2.16: [modo paciente M15, tendência H1 e espera de até oito velas M15](docs/PATIENT_MODE.md). Opcional por `EntryTempo=PATIENT_M15`; padrão `STANDARD_M5`. Não altera posições antigas nem os limites financeiros.
-
-Atualização no Windows, dentro do projeto:
+1. Desligue Algo Trading, retire o EA antigo do gráfico e faça a migração **sem posições antigas do robô abertas**. O novo EA recusa assumir posições de versões anteriores. Não exclua histórico, credenciais ou planos locais.
+2. Na pasta clonada do projeto:
 
 ```powershell
 git switch development/safe-multistrategy
 git pull --ff-only origin development/safe-multistrategy
-py tools\install_mt5.py "C:\caminho\da\Pasta de Dados do MT5"
+py tools\install_mt5.py "CAMINHO DA PASTA DE DADOS DO MT5"
 ```
 
-Desligue Algo Trading e aguarde ficar flat antes de instalar. O instalador copia EA + doze includes, confere hashes e faz backup; não compila nem habilita negociação. Depois, compile `MQL5/Experts/ForexSmart.mq5` com F7 e confira v2.16. Não foi executada compilação MQL5 nesta tarefa. Novos arquivos de plano são locais e não devem ser apagados com posições abertas.
+O instalador confere as **cinco fontes**, faz backup, retira os includes aposentados e guarda/remove o `.ex5` antigo para evitar executar a versão errada. Não compila. Abra `MQL5\Experts\ForexSmart.mq5` no MetaEditor, pressione **F7** e confira v3.00 e zero erros. Compilação completa MQL5 não foi executada no ambiente Linux desta entrega.
 
+3. Deixe o MT5 aberto e conectado à sua **conta demo USD**, com histórico M15 dos quatro pares carregado. No PowerShell do projeto:
 
-Primeira versão de Expert Advisor MQL5. **Não compilada nem validada em MT5 neste ambiente Linux. Não existe evidência de rentabilidade.** Inicia somente com alertas (`AutoTrade=false`).
-
-## Instalação e execução
-
-1. No MT5 desktop, abra Arquivo → Abrir pasta de dados e copie `mt5/ForexSmart.mq5` para `MQL5/Experts/` e a pasta `mt5/Include` para `MQL5/Experts/Include/` (preserve essa estrutura).
-2. Abra no MetaEditor e compile (F7). Corrija e valide qualquer diagnóstico antes de usar.
-3. No Strategy Tester, selecione ForexSmart, M5, ticks reais, conta demo e histórico de todos os pares. Inclua spread, comissões e slippage; use períodos fora da amostra. Para testar entradas, configure `AutoTrade=true` no testador.
-4. Anexe **uma única instância** a um gráfico demo. Configure os nomes exatos dos símbolos da corretora, incluindo sufixos. Aguarde carregar o histórico de todos os pares. Para alertas push, configure MetaQuotes ID nas opções do terminal.
-5. Negociação automática exige `AutoTrade=true`, permissão no EA e Algo Trading no terminal. O botão Pausar bloqueia novas entradas, mas mantém a gestão das posições do robô.
-
-## Estratégia e risco
-
-Pullback e retomada no fechamento do candle M5 com EMAs 9/21; ATR 14 mede volatilidade. Compra exige tendência de alta e retomada da EMA9; venda usa o inverso. Não utiliza candles futuros. Analisa a lista inteira a cada dois segundos, processando cada novo candle uma vez.
-
-TP inicial adaptativo: ATR × (1 + 2 × força), limitado pelo mínimo/máximo de **pontos da corretora**, não dinheiro nem pips. Força = distância EMA9/21 dividida pelo ATR, limitada a 1. O alvo é escolhido na entrada e reavaliado pela volatilidade e força atuais, sempre dentro do intervalo em relação à entrada. Atualizações exigem diferença superior a 0,25 ATR e distância válida da cotação. Não há classificador separado de scalping e tendência.
-
-SL inicial de 1,5 ATR, respeitando distância mínima da corretora. Após 1 ATR favorável, trailing de 1 ATR sem afrouxar o stop; após 1,5 ATR, tenta realizar metade uma única vez por identificador de posição. **Parciais apenas em contas hedging**, respeitando lote mínimo e step. Netting mantém trailing, sem parcial. Gaps, execução e custos podem produzir perdas mesmo após breakeven.
-
-Risco padrão 0,25% da equity por operação, teto de duas posições em toda a conta (inclui manuais), uma posição por símbolo e bloqueio de novas entradas após queda de equity diária de 2%. Ordens pendentes e operações de outros terminais podem ultrapassar esse limite; use uma instância e uma conta dedicada. O limite diário não liquida posições. A referência diária é persistida no terminal e começa na primeira execução de cada dia do servidor, não reconstrói o saldo à meia-noite.
-
-Horários usam o servidor MT5 e UTC, sem deslocamento brasileiro fixo; acompanha o horário informado pela corretora. Não há filtro de sessões nem calendário de notícias. O mercado segue disponibilidade de ticks e regras da corretora.
-
-## Painel e histórico
-
-Painel nativo preto, verde e branco com saldo/equity, posições, pares, horário, modo e último evento; botões Pausar/Retomar e Status. Eventos de execução distinguem magic do Forex Smart, entradas humanas (magic zero) e outros robôs. Não altera stops de posições humanas. Saídas e parciais mostram resultado líquido **do negócio**, não consolidado de toda a operação; comissão de entrada pode ser separada.
-
-CSV persistido em `MQL5/Files/ForexSmart-history.csv` (no testador, diretório do agente). Alertas locais e push opcional para oportunidades e negócios. Telegram opcional conforme configuração abaixo; WhatsApp não integrado. O histórico nativo do MT5 é a fonte para reconciliação; transações ocorridas com o EA desligado não são importadas para o CSV.
-
-## Desenvolvimento na nuvem
-
-Python 3.12, biblioteca padrão, sem dependências externas:
-
-```sh
-cd /workspace/roboforexsmart
-python3 -m unittest discover -s tests -v
-python3 tools/history_report.py /caminho/ForexSmart-history.csv
+```powershell
+py -m pip install -r requirements-ml-windows.txt
+py tools\prepare_forex_ml.py
 ```
 
-Testes exercitam somente o leitor de histórico. Compilação MQL5, backtest, execução de ordens, trailing, parcial, reinício e alertas push **pendentes no MT5**. Não execute ordens reais antes dessa validação.
+Esse comando lê candles fechados, exporta dados, treina, calibra e avalia o modelo. **Não envia ordens, não solicita credenciais e não ativa o EA.** Solicita até30000 velas por par, mínimo6000. Se faltar histórico, aumente o limite de barras do terminal/carregue os gráficos e repita. A disponibilidade depende da corretora.
 
-Pares configurados conforme informado: EURUSD#, USDJPY#, GBPUSD#, USDCHF#. O livro ainda não foi fornecido; a estratégia não foi atribuída a essa referência.
+O resultado fica em `artifacts\ForexSmart-ml-report.json`. Se houver qualificação, o modelo é copiado para `MQL5\Files\ForexSmart-ml-model.csv` da instalação de MT5 informada no console. Se os dados não sustentarem vantagem estimada, **nenhum modelo novo será instalado** e os motivos ficam no relatório. Isso é um resultado de pesquisa, não um erro a contornar mudando números do modelo.
 
-## Critérios antes de negociar
+Se houver mais de um MT5 instalado:
 
-Validar rejeições da corretora, tamanho de lote e risco em diferentes moedas de conta, reinício após parcial, limites com posições humanas, hedging/netting, mercado fechado, spreads altos e perda de conexão. Medir drawdown, expectativa após custos, profit factor e estabilidade fora da amostra. O painel conta negócios de saída positivos/negativos e soma o resultado líquido histórico do magic do EA; parciais contam separadamente. Curva de equity e dashboard web ficam para a próxima implementação após validar o executor.
-
-
-## Telegram — instalação passo a passo (v1.10)
-
-1. Atualize o checkout no PowerShell, dentro da sua pasta do projeto:
-   ```powershell
-   git pull origin main
-   ```
-2. No MT5: **Arquivo → Abrir Pasta de Dados**. Copie os arquivos do projeto para estes destinos:
-   ```text
-   mt5/ForexSmart.mq5                   → MQL5/Experts/ForexSmart.mq5
-   mt5/Include/ForexSmartTelegram.mqh   → MQL5/Experts/Include/ForexSmartTelegram.mqh
-   ```
-   Abra ForexSmart.mq5 no MetaEditor e pressione F7. Esta versão ainda precisa ser compilada e validada no seu terminal.
-3. No Telegram, abra o **@BotFather** oficial, envie `/newbot` e siga as instruções. Guarde o token em local privado. Abra a conversa com o bot criado e envie `/start` e uma mensagem de texto.
-4. Obtenha o chat ID no navegador **somente no seu computador**, substituindo o marcador abaixo pelo token. Não compartilhe a URL nem capturas dela, pois contêm a credencial:
-   ```text
-   https://api.telegram.org/bot<SEU_TOKEN>/getUpdates
-   ```
-   Procure `result` → `message` → `chat` → `id`. Use o ID de `chat`, não o de `from`. Se `result` estiver vazio, envie outra mensagem ao bot e atualize. Para grupo, adicione o bot ao grupo, envie um comando dirigido ao bot e use o ID negativo do chat. Um bot já usado por outro sistema com webhook/polling pode exigir um bot dedicado; não remova webhooks de outro serviço.
-5. Na Pasta de Dados do MT5, abra `MQL5/Files`. Crie **ForexSmart-telegram.txt**, UTF-8, com exatamente duas linhas:
-   ```text
-   TOKEN_DO_BOT
-   CHAT_ID_NUMERICO
-   ```
-   Substitua pelos valores reais, sem aspas, rótulos ou espaços. Confirme que não virou `.txt.txt`. Não use a pasta do projeto para guardar essa credencial. O arquivo é texto local: proteja o acesso ao computador e backups. Nunca envie token em chat, logs ou GitHub. Se exposto, revogue-o no BotFather.
-6. Em **Ferramentas → Opções → Expert Advisors**, marque **Permitir WebRequest para as URLs listadas** e adicione apenas:
-   ```text
-   https://api.telegram.org
-   ```
-7. No gráfico com a única instância do ForexSmart, pressione F7 e configure **TelegramNotifications=true**. Para testar apenas alertas, deixe **AutoTrade=false**. Confirme em OK. O EA enfileira uma mensagem de conexão, enviada no próximo ciclo. Clique em **Status** para outro teste. Isso não abre operações.
-8. Abra **Ctrl+T → Experts**. Sucesso: `Telegram: notificação entregue.` Confira a mensagem no Telegram. Essa confirmação indica que a API aceitou o envio, não que a pessoa leu. Teste em conta demo; não é necessário habilitar operações automáticas para testar Telegram.
-
-### Mensagens e comportamento
-
-Oportunidades não significam execução: entradas podem ser bloqueadas por risco, spread, margem ou posição existente. Entradas e saídas incluem direção do negócio, volume, preço, moeda e número do negócio. Na saída, COMPRA/VENDA é o lado do negócio de fechamento, não necessariamente o lado da posição original. Resultado é líquido do negócio, não o consolidado da posição. Eventos humanos e de outros robôs também são identificados. Parciais geram o evento de gestão e o negócio correspondente. Um alerta de stop é enviado quando cruza a entrada, sem notificar cada pequeno deslocamento. Limite diário é avisado uma vez por dia/instância. Não há comandos pelo Telegram nem importação de operações ocorridas com EA desligado.
-
-Fila em memória: até 100 mensagens, uma tentativa por ciclo elegível, intervalo mínimo de quatro segundos, até três tentativas por mensagem; mensagens com mais de cinco minutos são descartadas. Reiniciar o EA limpa a fila. Falhas ambíguas de rede podem gerar duplicidade se o Telegram recebeu a mensagem mas a resposta se perdeu. Sem garantia de entrega nem persistência offline.
-
-O WebRequest é síncrono: timeout de 1 segundo, executado depois da gestão e análise. Pode atrasar brevemente o próximo ciclo; stops já aceitos pela corretora continuam no servidor. Não é transporte adequado para comandos de emergência. O Testador de Estratégia desativa o Telegram automaticamente; alertas reais exigem terminal conectado.
-
-### Diagnóstico
-
-- HTTP `401`/`404`: confira o token; `400`: confira chat ID e arquivo; `403`: inicie a conversa, desbloqueie o bot e confira permissões no grupo. Esses erros suspendem envios até corrigir e recarregar o EA.
-- HTTP `429`: limite da API; o robô espera 60 segundos antes de tentar novamente.
-- HTTP `-1`: confira código de erro MT5, autorização WebRequest, conexão e firewall. O código `4014` normalmente indica chamada não permitida. Não compartilhe token para diagnóstico.
-- Painel “habilitado” significa credencial carregada; somente mensagem recebida confirma o teste de entrega.
-
-### Testes MQL5 sem envio
-
-Copie `mt5/Scripts/TestForexSmartTelegram.mq5` para `MQL5/Scripts/` e o include para `MQL5/Experts/Include/`. Compile e execute o script em um gráfico demo. Deve imprimir `Telegram unit tests: PASS`. Testa encoding UTF-8, limites/ordem da fila e expiração, sem chamar Telegram nem precisar de token. Esses testes MQL5 não foram executados no ambiente Linux; os testes Python validam somente o leitor CSV.
-
-## Evolução v2.00 — branch de desenvolvimento
-
-Esta branch adiciona autorização por sessão, isolamento por conta/servidor, controles de custos e risco e quatro estratégias experimentais. **Não foi compilada nem executada no MT5 neste ambiente.** Não substitui automaticamente a versão da main.
-
-Leia [auditoria, testes e procedimentos completos](docs/VALIDATION.md) antes de instalar. O modo padrão é `LEGACY`; os critérios EMA9/21/ATR14 continuam, mas as novas proteções podem rejeitar entradas que a v1.10 aceitaria. O resultado do backtest antigo não é evidência de rentabilidade da v2.
-
-Para instalar a v2, copie **todos os arquivos de `mt5/Include/`** para `MQL5/Experts/Include/`, além do EA. A autorização requer `AutoTrade=true`, permissões do terminal, comissão conferida (`CommissionEstimateConfirmed=true`) e clique no botão **ATIVAR DEMO/REAL**. A cada reinício/troca de conta é necessário ativar novamente. Telegram continua com o mesmo arquivo local e URL; não existem comandos remotos.
-
-O histórico novo usa `ForexSmart-<login>.<fingerprint-servidor>-history.csv`. O antigo `ForexSmart-history.csv` é preservado. `tools/history_report.py` aceita os dois formatos e agrega os novos eventos de negócios por estratégia/par; não calcula win rate por posição com base em parciais.
-
-Testes locais sem MT5:
-
-```sh
-python3 -m unittest discover -s tests -v
-g++ -std=c++17 -Wall -Wextra -Werror tests/native/test_core.cpp -o /tmp/forexsmart-core-tests
-/tmp/forexsmart-core-tests
+```powershell
+py tools\prepare_forex_ml.py --terminal "C:\CAMINHO\terminal64.exe"
 ```
 
-Nenhum desses comandos envia ordens. C++ compila apenas as políticas matemáticas compartilhadas com o EA. Compilação completa, backtest, painel, APIs MT5, recuperação real do terminal e operação demo permanecem na matriz de validação pendente.
+4. Anexe uma única instância do ForexSmart ao gráfico. Confira os seis inputs, selecione `AutoTrade=true` para execução, habilite as permissões/Algo Trading e clique **ATIVAR DEMO**. O botão **Carregar modelo** relê o arquivo e desarma a sessão; depois é necessária ativação manual. Não apague marca de duplicidade para forçar entrada.
 
+## Os seis inputs
 
-Na v2.12, leia [extensão de TP e arquivos FSSignal](docs/TP_AND_SNAPSHOTS.md). Snapshots ficam desligados por padrão, com limite e limpeza opcional quando habilitados. A extensão de TP é opcional e nunca ignora o obstáculo técnico ou aumenta lote/risco.
+| Input | Padrão | Uso |
+|---|---:|---|
+| AutoTrade | false | Alertas/análise ou execução autorizada |
+| RiskPercent | .25 | Teto de risco por operação sobre equity, limitado a1% |
+| ProfitUSD | 5 | Objetivo **aproximado** para dimensionar lote, ajustável de3a10USD |
+| DailyLossPercent | 2 | Bloqueio de novas entradas pela perda diária de equity |
+| CommissionPerLotRoundTurn | 0 | Comissão USD por lote, ida+volta; precisa coincidir com o treino |
+| TelegramNotifications | true | Usa o arquivo local de Telegram existente |
 
+Não há mais seletores de estratégia, dezenas de filtros, horários, ADX, pivôs ou modo paciente. M15 e pares `EURUSD#, USDJPY#, GBPUSD#, USDCHF#` fazem parte da política única. Os padrões são candidatos, não evidência de rentabilidade.
 
-V2.13: [classificação dos obstáculos e reavaliação limitada](docs/OBSTACLES_AND_RECHECK.md). Os modos experimentais são opcionais, com comparação/rollback por inputs. Esse pacote histórico tinha dez arquivos; o pacote atual v2.16 verifica treze.
+## Como opera
+
+Price action é descrito por13 características de candles fechados: corpo, pavios, deslocamentos, posição na faixa, espaço recente e spread/volatilidade. Um classificador logístico treinado estima o resultado de compra/venda. Entre os candidatos, prioriza maior probabilidade estimada, com no máximo duas posições totais e uma por par.
+
+SL fica além dos extremos das últimas três velas fechadas mais buffer. TP tem1.25vezes a distância inicial do stop. O **lote**, não a distância do TP, busca o valor aproximado em USD. Arredondamento, lote mínimo, custos e execução podem gerar valor menor ou, no lote mínimo, até10USD estimados. Não há promessa de5USD exatos nem ganho garantido.
+
+Após fechamento favorável de pelo menos1R, pode mover o stop para entrada+reserva de custos ou estrutura mais favorável, sem afrouxá-lo. Sem parciais. A posição tem prazo de oito velas M15. Regras de saída são as mesmas usadas para criar os rótulos do treinamento, com limitações explícitas de simulação.
+
+Lote respeita risco até o stop, margem livre, Kelly fracionado, orçamento e volume mínimo/step. Permanecem autorizações, proteção contra duplicidade, margem, perda diária, integridade do plano e modelo, cotação válida e risco agregado. Posições manuais contam nos limites; posição sem SL pode bloquear novas entradas por risco desconhecido. Não existem bloqueios técnicos antigos por obstáculo/ADX/R:R2/teto20pips.
+
+## Livro, dados e validação
+
+[Especificação, adaptação do capítulo19, Kelly, treinamento e limitações](docs/ML_PRICE_ACTION.md).
+
+Os itens19.1.3.1 e19.1.3.2 do livro tratam de **dimensionamento**, não de um sinal de compra/venda com ML. Kelly é `G − (1−G)/V`. O exemplo G70%, V3 resulta60%, embora o texto diga50%. O robô aplica apenas1/4de Kelly, ainda limitado pelo RiskPercent e teto1%; não arrisca50% ou60% da conta.
+
+Testes:
+
+```powershell
+py -m unittest discover -s tests -v
+```
+
+Há comparação das funções matemáticas MQL com Python por harness C++ quando g++ está disponível. A integração MT5, MetaEditor, margem da corretora, fills, calendário e forward demo não foram executados neste Linux. Modelos/dados de testes são sintéticos e nunca são instalados. Dados reais atuais ainda precisam ser exportados do seu terminal para o primeiro treinamento.
+
+## Telegram e histórico
+
+Credenciais permanecem em `MQL5\Files\ForexSmart-telegram.txt` (token na primeira linha e chat_id na segunda). Permita `https://api.telegram.org` nas URLs de WebRequest do MT5. Não compartilhe esse arquivo. O Telegram informa entradas automáticas, entradas humanas e saídas com resultado; não recebe comandos remotos.
+
+O CSV anterior é preservado. Novos eventos usam `ML_PA_V1`. Sempre abra **uma cópia** do histórico, para não bloquear sua gravação.
+
+```powershell
+py tools\ml_journal_report.py "CAMINHO DA COPIA DO HISTORICO.csv"
+```
+
+O painel mostra saldo/equity, sessão, modelo, risco, objetivo e posições. Pausar e emergência desarmam novas entradas; não liquidam toda a conta. A gestão das próprias posições ML continua quando houver permissão; SL/TP do servidor permanecem se o terminal estiver offline. Reconexão ou perda de permissão exige reativação manual.

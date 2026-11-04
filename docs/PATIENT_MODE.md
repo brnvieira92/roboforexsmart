@@ -1,3 +1,5 @@
+> Documento histórico da versão2.x, aposentada. Para a versão ativa3.00, use [ML + price action](ML_PRICE_ACTION.md).
+
 # v2.16 — modo paciente M15
 
 Modo separado e opcional. O padrão continua `EntryTempo=STANDARD_M5`. Para usar o modo paciente com a meta líquida estimada5USD que você escolheu:
