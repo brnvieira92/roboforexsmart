@@ -16,6 +16,16 @@ except ImportError:
     from forex_ml import FEATURES,POLICY,SYMBOLS,load_bars,samples,temporal_split,portfolio,statistics,kelly
 
 
+def fit_subset(records,maximum=50000,seed=2026):
+    # Sampling is confined to the already purged TRAIN block. Never split time randomly.
+    # A fixed stride can alias the buy/sell or symbol ordering (stride2 selected one side).
+    import random
+    if maximum<1:raise ValueError('Invalid fit sample limit')
+    if len(records)<=maximum:return list(records)
+    indices=sorted(random.Random(seed).sample(range(len(records)),maximum))
+    return [records[index] for index in indices]
+
+
 def fit_logistic(x,y,epochs=200):
     import numpy as np
     x=np.asarray(x,dtype=float);y=np.asarray(y,dtype=float)
@@ -52,18 +62,46 @@ def probabilities(model,records):
 def qualification(base,stress,by_pair,calibration=None):
     reasons=[]
     for label,s in (('teste',base),('stress_spread_1.5',stress)):
-        if s['trades']<100:reasons.append(label+': menos de100 trades não sobrepostos pela carteira')
-        if s['profit_factor'] is None or s['profit_factor']<1.05:reasons.append(label+': profit factor abaixo de1.05')
-        if s['net_R']<=0:reasons.append(label+': expectativa líquida não positiva')
+        if s['trades']<100:reasons.append(label+': menos de100 operações simuladas na carteira')
+        if s['trades']==0:
+            reasons.append(label+': sem operações avaliadas; desempenho indisponível')
+        else:
+            if s['profit_factor'] is None or s['profit_factor']<1.05:reasons.append(label+': profit factor abaixo de1.05')
+            if s['net_R']<=0:reasons.append(label+': expectativa líquida não positiva')
     for symbol,stats in by_pair.items():
-        if stats['trades']<20 or stats['net_R']<=0:reasons.append(symbol+': evidência insuficiente/negativa no teste')
+        if stats['trades']==0:reasons.append(symbol+': sem operações avaliadas')
+        elif stats['trades']<20 or stats['net_R']<=0:reasons.append(symbol+': evidência insuficiente/negativa no teste')
     g=min(base['win_lower'],stress['win_lower']);v=.9*min(base['payoff'],stress['payoff'])
     if calibration is not None:
         g=min(g,calibration['win_lower']);v=.9*calibration['payoff']
         if calibration['trades']<100:reasons.append('calibração: menos de100 trades')
-        if min(base['payoff'],stress['payoff'])<v:reasons.append('payoff do teste não sustenta a estimativa fixada na calibração')
+        if base['trades']>0 and stress['trades']>0 and min(base['payoff'],stress['payoff'])<v:reasons.append('payoff do teste não sustenta a estimativa fixada na calibração')
     if kelly(g,v)<=0:reasons.append('Kelly conservador não positivo')
     return not reasons,reasons,g,v
+
+
+def selection_diagnostics(records,p,win_lower,payoff_lower):
+    import numpy as np
+    values=np.asarray(p,dtype=float)
+    score=sum(float(value)>=.55 for value in values)
+    economic=sum(float(value)>=.55 and ('win_per_lot' not in r or value*r['win_per_lot']-(1-value)*r['initial_loss']>0) for r,value in zip(records,values))
+    eligible=sum(float(value)>=.55 and kelly(min(float(value),win_lower),payoff_lower)>0 and ('win_per_lot' not in r or value*r['win_per_lot']-(1-value)*r['initial_loss']>0) for r,value in zip(records,values))
+    return dict(directional_records=len(records),score_at_least_055=int(score),score_and_positive_economics=int(economic),
+        score_economics_and_positive_kelly=int(eligible),
+        probability_min=float(values.min()) if len(values) else None,
+        probability_median=float(np.median(values)) if len(values) else None,
+        probability_max=float(values.max()) if len(values) else None)
+
+
+def assess_test(records,p,win_lower,payoff_lower):
+    operational=portfolio(records,p,win_lower=win_lower,payoff_lower=payoff_lower)
+    diagnostic=portfolio(records,p)
+    return operational,dict(
+        selection=selection_diagnostics(records,p,win_lower,payoff_lower),
+        operational_status='BLOCKED_BY_CALIBRATION_KELLY' if kelly(win_lower,payoff_lower)<=0 else ('NO_ELIGIBLE_TRADES' if not operational else 'EVALUATED'),
+        diagnostic_without_kelly=statistics(diagnostic),
+        diagnostic_by_pair={symbol:statistics([r for r in diagnostic if r['symbol']==symbol]) for symbol in SYMBOLS},
+        warning='Diagnostic simulation only: threshold .55, costs and portfolio limits retained; Kelly gate omitted solely to measure signal behavior. Never used for qualification, model sizing or installation.')
 
 
 def write_model(path,model,report,commission):
@@ -111,19 +149,26 @@ def train(path,commission=0):
     if any(n<6000 for n in counts.values()):raise ValueError('Mínimo6000 velas M15 fechadas por par; disponível: '+str(counts))
     records=samples(data,commission);train,calibration,test,boundaries=temporal_split(records)
     if min(len(train),len(calibration),len(test))<500:raise ValueError('Blocos cronológicos insuficientes após purga')
-    stride=max(1,len(train)//50000);fit=train[::stride]
+    fit=fit_subset(train)
     model=fit_logistic([r['x'] for r in fit],[r['y'] for r in fit])
     model['calibration_a'],model['calibration_b']=calibrate(scores(model,calibration),[r['y'] for r in calibration])
     calibration_stats=statistics(portfolio(calibration,probabilities(model,calibration)))
     cal_g,cal_v=calibration_stats['win_lower'],.9*calibration_stats['payoff']
-    p=probabilities(model,test);trades=portfolio(test,p,win_lower=cal_g,payoff_lower=cal_v);stats=statistics(trades)
+    p=probabilities(model,test);trades,test_diagnostics=assess_test(test,p,cal_g,cal_v);stats=statistics(trades)
     stress_records=samples(data,commission,1.5);stress_test=[r for r in stress_records if r['entry_time']>=boundaries['test_boundary']]
-    stress_trades=portfolio(stress_test,probabilities(model,stress_test),win_lower=cal_g,payoff_lower=cal_v);stress_stats=statistics(stress_trades)
+    stress_p=probabilities(model,stress_test)
+    stress_trades,stress_diagnostics=assess_test(stress_test,stress_p,cal_g,cal_v);stress_stats=statistics(stress_trades)
     by_pair={s:statistics([r for r in trades if r['symbol']==s]) for s in SYMBOLS}
     qualified,reasons,g,v=qualification(stats,stress_stats,by_pair,calibration_stats)
     report=dict(qualified=qualified,reasons=reasons,model_id=hashlib.sha256(json.dumps(model,sort_keys=True).encode()).hexdigest()[:16],
-        policy=POLICY,bars=counts,split=boundaries,fit_samples=len(fit),calibration_samples=len(calibration),test_samples=len(test),
+        policy=POLICY,bars=counts,split=boundaries,fit_samples=len(fit),
+        fit_selection=dict(method='seeded_random_within_train_only',seed=2026,maximum=50000,by_symbol_and_side=dict(Counter(r['symbol']+(' BUY' if r['buy'] else ' SELL') for r in fit))),
+        class_balance=dict(fit_win_rate=sum(r['y'] for r in fit)/len(fit),calibration_win_rate=sum(r['y'] for r in calibration)/len(calibration),test_win_rate=sum(r['y'] for r in test)/len(test)),
+        constant_training_baseline_brier=float(np.mean((sum(r['y'] for r in fit)/len(fit)-np.asarray([r['y'] for r in test]))**2)),
+        calibration_samples=len(calibration),test_samples=len(test),
         test=stats,calibration=calibration_stats,stress_spread_1_5=stress_stats,by_pair=by_pair,kelly_win_lower=g,kelly_payoff_lower=v,
+        calibration_kelly=dict(win_lower=cal_g,payoff_lower=cal_v,raw_fraction=kelly(cal_g,cal_v),break_even_win_rate=1/(1+cal_v) if cal_v>0 else None,positive=kelly(cal_g,cal_v)>0),
+        diagnostics=dict(test=test_diagnostics,stress_spread_1_5=stress_diagnostics),
         kelly_full=max(0,kelly(g,v)),kelly_fraction=.25,evaluation_end=max(r['exit_time'] for r in test),
         brier=float(np.mean((p-np.asarray([r['y'] for r in test]))**2)),
         test_log_loss=float(-np.mean(np.asarray([r['y'] for r in test])*np.log(np.clip(p,1e-9,1-1e-9))+(1-np.asarray([r['y'] for r in test]))*np.log(np.clip(1-p,1e-9,1-1e-9)))),
@@ -156,7 +201,10 @@ def main(argv=None):
         model,report=train(source,args.commission)
         args.report.parent.mkdir(parents=True,exist_ok=True);args.report.write_text(json.dumps(report,indent=2,ensure_ascii=False,allow_nan=False)+'\n',encoding='utf-8')
         if not report['qualified']:
-            print('Modelo NÃO qualificado. Nenhum modelo foi instalado. Motivos:');print('\n'.join(report['reasons']));print('Relatório:',args.report);return 2
+            print('Modelo NÃO qualificado. Nenhum modelo foi instalado. Motivos:')
+            print('Estado do teste:',report['diagnostics']['test']['operational_status'])
+            print('Simulação diagnóstica sem Kelly (não autoriza operação):',report['diagnostics']['test']['diagnostic_without_kelly']['trades'],'trades')
+            print('\n'.join(report['reasons']));print('Relatório:',args.report);return 2
         write_model(args.output,model,report,args.commission)
         if install is not None:
             if not install.is_dir() or install.name.lower()!='files' or install.parent.name.upper()!='MQL5':raise ValueError('Destino precisa ser MQL5/Files existente')
@@ -164,7 +212,12 @@ def main(argv=None):
             if destination.exists():shutil.copy2(destination,destination.with_suffix('.csv.backup'))
             shutil.copy2(args.output,destination)
         print('Modelo qualificado para avaliação em demo:',report['model_id']);print('Relatório:',args.report)
-        print('No EA: Carregar modelo, depois ATIVAR DEMO. Nenhuma sessão foi armada por este script.');return 0
+        if install is None:
+            print('Modelo salvo somente em:',args.output,'; não foi copiado para o MT5. Consulte o relatório antes de instalar.')
+        else:
+            print('Modelo copiado para:',install)
+            print('No EA: Carregar modelo, depois ATIVAR DEMO. Nenhuma sessão foi armada por este script.')
+        return 0
     except (ValueError,ImportError,OSError) as exc:
         print('Preparo interrompido:',exc)
         if report is None:report=dict(qualified=False,reasons=[str(exc)])

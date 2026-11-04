@@ -52,7 +52,7 @@ Após fill, confere SL/TP, desvio, volume e risco. Violação desarma e provoca 
 
 Solicita30000M15 por par; precisa de pelo menos6000em cada. Exporta OHLC, timestamp de servidor/API, spread, point, tick_size e contract_size. Precisam representar o mesmo broker/contrato usado no EA. Não há histórico completo suficiente nos CSV de sinais anexados ao chat; os snapshots são pequenos, sobrepostos e não substituem dados de treinamento.
 
-Treino real: regressão logística regularizada, otimizada por gradiente com NumPy. Ajusta médias/desvios somente no treino, até50000amostras de fit por espaçamento determinístico. Rótulos: resultado líquido positivo ou não sob a política descrita, com SL/TP/trailing/prazo e custos. Entradas usam próxima abertura, com spread conhecido da vela anterior como proxy de entrada, evitando usar o spread completo da vela futura como variável. Saídas usam spreads históricos aproximados. Dados de OHLC são insuficientes para reconstruir cada tick/fill.
+Treino real: regressão logística regularizada, otimizada por gradiente com NumPy. Ajusta médias/desvios somente no treino, até50000amostras de fit com seleção aleatória reprodutível confinada ao bloco de treino (seed2026), evitando privilegiar o lado/ativo pela ordenação dos registros. Rótulos: resultado líquido positivo ou não sob a política descrita, com SL/TP/trailing/prazo e custos. Entradas usam próxima abertura, com spread conhecido da vela anterior como proxy de entrada, evitando usar o spread completo da vela futura como variável. Saídas usam spreads históricos aproximados. Dados de OHLC são insuficientes para reconstruir cada tick/fill.
 
 Divisão global por timestamp60/20/20, preservando simultaneidade dos quatro pares. Treino, calibração e teste separados cronologicamente, com purga dos rótulos que cruzam fronteiras e intervalo de oito velas antes das fronteiras. Sem split aleatório de janelas sobrepostas. Calibração Platt no segundo bloco; teste no bloco final sem reajustar pesos. G/V da calibração definem elegibilidade Kelly antes do teste. A redução posterior de G continua positiva e não amplia o conjunto de sinais elegíveis.
 
@@ -90,3 +90,14 @@ Os documentos anteriores em docs/ são históricos e não descrevem parâmetros 
 O fluxo de treinamento também foi executado em uma fixture sintética de24000velas (6000por par), em /tmp, sem instalar nada. O modelo sem evidência foi recusado e o relatório gerado. Isso verifica o caminho de execução/recusa; não é resultado de Forex nem evidência de vantagem. Nenhum peso de fixture foi embarcado.
 
 Compilação do EA completo no MetaEditor e treinamento/forward com dados reais do terminal continuam pendentes por indisponibilidade dessas ferramentas/dados nesta nuvem. A primeira etapa operacional é exportar e treinar no Windows conforme README, não habilitar entradas sem modelo.
+
+
+## Diagnóstico de teste bloqueado por Kelly
+
+Se o Kelly conservador da calibração já for <=0, o filtro `min(probabilidade_atual,G_conservador)` impede todas as entradas operacionais. Teste com0operações não permite concluir PF baixo ou expectativa negativa; essas métricas estão indisponíveis. O relatório agora distingue esse estado (`BLOCKED_BY_CALIBRATION_KELLY`) de perda observada e mostra o funil de scores/economia/Kelly.
+
+`diagnostics.test.diagnostic_without_kelly` é uma simulação adicional, com o mesmo modelo, cutoff.55, custos e limites de carteira, omitindo Kelly **só para medir** o comportamento do sinal. Não participa da qualificação, do lote nem da instalação. Resultado positivo nessa simulação não autoriza operar nem recalibrar Kelly no mesmo holdout e declarar que passou em teste independente.
+
+Correção de implementação: a antiga subamostragem por stride2 podia selecionar sistematicamente um lado em exemplos alternados e deixar71638amostras quando o teto era50000. O treino agora usa uma amostra reprodutível até50000 dentro do bloco já separado/purgado. A separação temporal e os critérios financeiros não foram afrouxados. Pesos/model_id podem mudar; compare as receitas explicitamente, não atribua diferenças só ao diagnóstico novo.
+
+Nesta correção,36testes passaram. Casos novos reproduzem G=.3138581933/V=1.5987304688, que força Kelly negativo para qualquer score limitado por G; garantem que diagnóstico positivo não aprova um modelo bloqueado; verificam seleção operacional inalterada quando Kelly é positivo e amostragem de treino reprodutível sem alias de direção e com teto50000. O fluxo completo foi novamente exercitado apenas com dados sintéticos; dados reais do usuário ainda precisam ser reprocessados para medir o efeito da correção de amostragem.

@@ -28,7 +28,7 @@ py tools\prepare_forex_ml.py
 
 Esse comando lê candles fechados, exporta dados, treina, calibra e avalia o modelo. **Não envia ordens, não solicita credenciais e não ativa o EA.** Solicita até30000 velas por par, mínimo6000. Se faltar histórico, aumente o limite de barras do terminal/carregue os gráficos e repita. A disponibilidade depende da corretora.
 
-O resultado fica em `artifacts\ForexSmart-ml-report.json`. Se houver qualificação, o modelo é copiado para `MQL5\Files\ForexSmart-ml-model.csv` da instalação de MT5 informada no console. Se os dados não sustentarem vantagem estimada, **nenhum modelo novo será instalado** e os motivos ficam no relatório. Isso é um resultado de pesquisa, não um erro a contornar mudando números do modelo.
+O resultado fica em `artifacts\ForexSmart-ml-report.json`. Se Kelly bloquear o teste inteiro, o relatório separa esse bloqueio de desempenho negativo e inclui uma simulação diagnóstica sem Kelly, que não autoriza operar. Se houver qualificação, o modelo é copiado para `MQL5\Files\ForexSmart-ml-model.csv` da instalação de MT5 informada no console. Se os dados não sustentarem vantagem estimada, **nenhum modelo novo será instalado** e os motivos ficam no relatório. Isso é um resultado de pesquisa, não um erro a contornar mudando números do modelo.
 
 Se houver mais de um MT5 instalado:
 

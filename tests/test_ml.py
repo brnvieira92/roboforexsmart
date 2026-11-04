@@ -121,3 +121,45 @@ class MLPolicyTests(unittest.TestCase):
             code=main(['--csv',str(source),'--report',str(report),'--output',str(output)])
             self.assertEqual(code,2);self.assertFalse(output.exists())
             self.assertFalse(json.loads(report.read_text())['qualified'])
+
+    def test_reported_calibration_kelly_blocks_all_scores_not_market_losses(self):
+        from tools.prepare_forex_ml import assess_test
+        g=.3138581933079522;v=1.5987304688330337
+        self.assertAlmostEqual(kelly(g,v),-.11532097107795286)
+        self.assertAlmostEqual(1/(1+v),.3848032768281093)
+        rows=[dict(entry_time=100+i*2000,exit_time=1000+i*2000,symbol='EURUSD#',buy=True,net_R=1.25,initial_loss=1.,win_per_lot=1.25,duration=900,both_touched=False) for i in range(2)]
+        operational,diagnostic=assess_test(rows,[.8,.99],g,v)
+        self.assertEqual(operational,[])
+        self.assertEqual(diagnostic['operational_status'],'BLOCKED_BY_CALIBRATION_KELLY')
+        self.assertEqual(diagnostic['selection']['score_at_least_055'],2)
+        self.assertEqual(diagnostic['selection']['score_economics_and_positive_kelly'],0)
+        self.assertEqual(diagnostic['diagnostic_without_kelly']['trades'],2)
+        self.assertGreater(diagnostic['diagnostic_without_kelly']['net_R'],0)
+        zero=statistics([])
+        ok,reasons,_,_=qualification(zero,zero,{s:zero for s in SYMBOLS})
+        self.assertFalse(ok)
+        self.assertTrue(any('sem operações avaliadas' in r for r in reasons))
+        self.assertFalse(any('expectativa líquida não positiva' in r for r in reasons))
+        self.assertFalse(any('profit factor abaixo' in r for r in reasons))
+
+    def test_diagnostics_preserve_operational_selection_when_kelly_positive(self):
+        from tools.prepare_forex_ml import assess_test
+        rows=[dict(entry_time=100+i*2000,exit_time=1000+i*2000,symbol='EURUSD#',buy=True,net_R=(-1 if i%2 else 1.25),initial_loss=1.,win_per_lot=1.25,duration=900,both_touched=False) for i in range(4)]
+        values=[.8,.7,.4,.6]
+        expected=portfolio(rows,values,win_lower=.7,payoff_lower=1.2)
+        operational,diagnostic=assess_test(rows,values,.7,1.2)
+        self.assertEqual(operational,expected)
+        self.assertEqual(diagnostic['operational_status'],'EVALUATED')
+
+    def test_fit_sampling_does_not_alias_alternating_sides_and_is_bounded(self):
+        from tools.prepare_forex_ml import fit_subset
+        rows=[dict(id=i,buy=i%2==0,symbol=SYMBOLS[(i//2)%4]) for i in range(10000)]
+        self.assertTrue(all(r['buy'] for r in rows[::2]))  # old stride2 failure
+        selected=fit_subset(rows,maximum=4000)
+        self.assertEqual(len(selected),4000)
+        self.assertEqual(selected,fit_subset(rows,maximum=4000))
+        self.assertEqual(len({r['id'] for r in selected}),4000)
+        self.assertEqual({r['buy'] for r in selected},{True,False})
+        self.assertEqual({r['symbol'] for r in selected},set(SYMBOLS))
+        self.assertTrue(all(r['id']<10000 for r in selected))
+        self.assertEqual(len(fit_subset([dict(id=i) for i in range(143276)])),50000)
